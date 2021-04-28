@@ -21,7 +21,7 @@ InnerBackground {
     function drawChart() {
         areaLine.clear()
         areaLine3.clear()
-        scatter.clear()
+        //scatter.clear()
 
         dateA.min = new Date(API.app.portfolio_pg.charts[0].timestamp*1000)
         dateA.max = new Date(API.app.portfolio_pg.charts[API.app.portfolio_pg.charts.length-1].timestamp*1000)
@@ -29,9 +29,10 @@ InnerBackground {
         for (let ii =0; ii<API.app.portfolio_pg.charts.length; ii++) {
             let el = API.app.portfolio_pg.charts[ii]
             try {
+                //console.log("timestamp: " + el.timestamp*1000)
                 areaLine3.append(el.timestamp*1000, parseFloat(el.total))
                 areaLine.append(el.timestamp*1000, parseFloat(el.total))
-                scatter.append(el.timestamp*1000, parseFloat(el.total))
+                //scatter.append(el.timestamp*1000, parseFloat(el.total))
             }catch(e) {}
         }
         chart_2.update()
@@ -87,35 +88,7 @@ InnerBackground {
     ClipRRect {
         anchors.fill: parent
         radius: parent.radius
-        Glow {
-            id: glow
-            anchors.fill: chart_2
-            radius: 8
-            samples: 168
-            color: 'purple'
-            source: chart_2
-        }
-        LinearGradient {
-            id: gradient
-            start: Qt.point(portfolio_asset_chart.mX,portfolio_asset_chart.mY-100)
-            end: Qt.point(portfolio_asset_chart.mX,portfolio_asset_chart.mY+100)
-            gradient: Gradient {
-                GradientStop {
-                    position: 1;
-                    color: theme.accentColor
-                }
-                GradientStop {
-                    position: 0.3;
-                    color: Qt.rgba(86,128,189,0.09)
-                }
-                GradientStop {
-                    position: 0.2;
-                    color: Qt.rgba(86,128,189,0.00)
-                }
-            }
-            anchors.fill: glow
-            source: glow
-        }
+
 
         ChartView {
             id: chart_2
@@ -132,18 +105,20 @@ InnerBackground {
 
             opacity: .8
             AreaSeries {
+                id: area
                 axisX: DateTimeAxis {
                     id: dateA
                     gridVisible: false
                     lineVisible: false
                     format: "<br>MMM d"
+                    labelsColor: theme.foregroundColor
                 }
                 axisY: ValueAxis {
                     lineVisible: false
                     max:  parseFloat(API.app.portfolio_pg.max_total_chart)
                     min:  parseFloat(API.app.portfolio_pg.min_total_chart)
-
-                    gridLineColor: Qt.rgba(77,198,255,0.12)
+                    labelsColor: theme.foregroundColor  
+                    gridLineColor: theme.chartGridLineColor
                 }
                 color: Qt.rgba(77,198,255,0.02)
                 borderColor: 'transparent'
@@ -155,6 +130,7 @@ InnerBackground {
                         visible: false
                         max:  parseFloat(API.app.portfolio_pg.max_total_chart)
                         min:  parseFloat(API.app.portfolio_pg.min_total_chart)
+                        color: theme.foregroundColor
                     }
                     axisX: DateTimeAxis {
                         id: dateA2
@@ -166,16 +142,40 @@ InnerBackground {
                     }
 
                 }
-
             }
+            Qaterial.ClipRRect {
+                width: parent.width-110
+                anchors.horizontalCenterOffset: 10
+                height: parent.height
+                
+                anchors.horizontalCenter: parent.horizontalCenter
+                Rectangle {
+                    id: verticalLine
+                    height: parent.height-84
+                    opacity: .7
+                    visible: mouse_area.containsMouse  && mouse_area.mouseX>60
+                    anchors.verticalCenterOffset: -6
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 3
+                    radius: 4
+                    
+                    border.color: theme.accentColor
+                    color: theme.foregroundColor
+                    x: mouse_area.mouseX-80
+                }
+            }
+            
             LineSeries {
                 id: areaLine3
                 color: theme.accentColor
                 visible: !isSpline
+                width: 3.0
                 axisY: ValueAxis {
                     visible: false
                     max:  parseFloat(API.app.portfolio_pg.max_total_chart)
                     min:  parseFloat(API.app.portfolio_pg.min_total_chart)
+                    gridLineColor: 'red'
+                    labelsColor: 'red'//theme.foregroundColor
                 }
                 axisX: DateTimeAxis {
                     visible: false
@@ -184,54 +184,39 @@ InnerBackground {
                     gridVisible: false
                     lineVisible: false
                     format: "MMM d"
+                    gridLineColor: 'red'
+                    labelsColor: 'red'//theme.foregroundColor
                 }
             }
-            ScatterSeries {
-                id: scatter
-                visible: true
-                color: theme.accentColor
-                borderColor: theme.accentColor
-                markerSize: 7
-                borderWidth: 3
-
-                onHovered: {
-                    let p = chart_2.mapToPosition(point, scatter)
-                    if(p.x<170) {
-                         boxi.x = p.x
+            MouseArea {
+                id: mouse_area
+                width: parent.width+200
+                height: parent.height
+                x: -40
+                hoverEnabled: true
+                onPositionChanged:  {
+                    let mx = mouseX
+                    //console.log(mx)
+                    let point = Qt.point(mx, mouseY)
+                    let p = chart_2.mapToValue(point, area)
+                    let idx = API.app.portfolio_pg.get_neareast_point(Math.floor(p.x) / 1000);
+                    let pos = areaLine3.at(idx);
+                    let chartPosition = chart_2.mapToPosition(pos, areaLine3)
+                    
+                    if(mx<170) {
+                         boxi.x = mx
                     }else {
-                        boxi.x = p.x-170
+                        boxi.x = mx-170
                     }
 
-
-                    boxi.y = p.y+10
-                    if(state){
-                        boxi.visible = true
-                    }else {
-                        boxi.visible = false
-                    }
-                    boxi.value = point.y
-                    boxi.timestamp = point.x
-
+                    boxi.y = chartPosition.y+10
+                    boxi.value = pos.y
+                    boxi.timestamp = pos.x
                 }
-
-
-                axisY: ValueAxis {
-                    visible: false
-                    max:  parseFloat(API.app.portfolio_pg.max_total_chart)
-                    min:  parseFloat(API.app.portfolio_pg.min_total_chart)
-                }
-                axisX: DateTimeAxis {
-                    visible: false
-                    min: dateA.min
-                    max: dateA.max
-                    gridVisible: false
-                    lineVisible: false
-                    format: "MMM d"
-                }
-
-
             }
         }
+       
+      
 
         Rectangle {
             anchors.fill: parent
@@ -299,7 +284,7 @@ InnerBackground {
             id: boxi
             property real value: 0
             property var timestamp
-            visible: false
+            visible:  mouse_area.containsMouse && mouse_area.mouseX>60
             width: 130
             height: 60
             x: 99999

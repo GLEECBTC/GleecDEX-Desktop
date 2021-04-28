@@ -115,6 +115,7 @@ namespace atomic_dex
         if (!ec && res)
         {
             set_current_balance_fiat_all(QString::fromStdString(fiat_balance_std));
+            m_portfolio_mdl->adjust_percent_current_currency(QString::fromStdString(fiat_balance_std));
         }
     }
 
@@ -232,5 +233,11 @@ namespace atomic_dex
     portfolio_page::get_main_balance_fiat_all() const
     {
         return m_main_current_balance_all;
+    }
+
+    int
+    portfolio_page::get_neareast_point(int timestamp) const
+    {
+        return m_system_manager.get_system<coingecko_wallet_charts_service>().get_neareast_point(timestamp);
     }
 } // namespace atomic_dex
