@@ -24,6 +24,7 @@
 #include <QProcess>
 #include <QSettings>
 #include <QTimer>
+#include <QSettings>
 
 #ifdef __APPLE__
 
@@ -66,12 +67,33 @@ namespace atomic_dex
     bool
     atomic_dex::application::enable_coins(const QStringList& coins)
     {
+        auto enableable_coins_count = entity_registry_.template ctx<QSettings>().value("MaximumNbCoinsEnabled").toULongLong();
+        if (enableable_coins_count < coins.size() + get_portfolio_page()->get_global_cfg()->get_enabled_coins().size())
+        {
+            return false;
+        }
+        
         std::vector<std::string> coins_std{};
-
         coins_std.reserve(coins.size());
         atomic_dex::mm2_service& mm2 = get_mm2();
-        for (auto&& coin: coins) { coins_std.push_back(coin.toStdString()); }
+        std::unordered_set<std::string> extra_coins;
+        for (auto&& coin: coins) {
+            auto coin_info = mm2.get_coin_info(coin.toStdString());
+            if (coin_info.has_parent_fees_ticker && coin_info.ticker != coin_info.fees_ticker)
+            {
+                auto coin_parent_info = mm2.get_coin_info(coin_info.fees_ticker);
+                if (extra_coins.insert(coin_parent_info.ticker).second)
+                {
+                    SPDLOG_INFO("Adding extra coin: {} to enable", coin_parent_info.ticker);
+                }
+            }
+            coins_std.push_back(coin.toStdString());
+        }
 
+        for (auto&& extra_coin : extra_coins)
+        {
+            coins_std.push_back(extra_coin);
+        }
         mm2.enable_multiple_coins(coins_std);
 
         return true;
@@ -137,6 +159,7 @@ namespace atomic_dex
     void
     application::launch()
     {
+        SPDLOG_INFO("Launch the application");
         this->system_manager_.start();
         auto* timer = new QTimer(this);
         connect(timer, &QTimer::timeout, this, &application::tick);
@@ -283,7 +306,12 @@ namespace atomic_dex
     application::application(QObject* pParent) : QObject(pParent)
     {
         fs::path settings_path = (atomic_dex::utils::get_current_configs_path() / "cfg.ini");
-        this->entity_registry_.set<QSettings>(settings_path.string().c_str(), QSettings::IniFormat);
+        #if defined(_WIN32) || defined(WIN32)
+            this->entity_registry_.set<QSettings>(QString::fromStdWString(settings_path.wstring()), QSettings::IniFormat);
+        #else
+            this->entity_registry_.set<QSettings>(QString::fromStdString(settings_path.string()), QSettings::IniFormat);
+        #endif
+
         //! Creates managers
         {
             system_manager_.create_system<qt_wallet_manager>(system_manager_);
@@ -326,6 +354,7 @@ namespace atomic_dex
             wallet_mgr->set_wallet_default_name(wallet_mgr->get_default_wallet_name());
             // set_wallet_default_name(get_default_wallet_name());
         }
+        SPDLOG_INFO("application created");
     }
 
     void

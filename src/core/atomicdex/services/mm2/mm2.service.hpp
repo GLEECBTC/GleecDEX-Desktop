@@ -28,7 +28,7 @@
 #include <antara/gaming/ecs/system.manager.hpp>
 #include <boost/thread/shared_mutex.hpp>
 #include <boost/thread/synchronized_value.hpp>
-#include <reproc++/reproc.hpp>
+//#include <reproc++/reproc.hpp>
 
 //! Project Headers
 #include "atomicdex/api/mm2/mm2.client.hpp"
@@ -88,7 +88,7 @@ namespace atomic_dex
         mm2_client m_mm2_client;
 
         //! Process
-        reproc::process m_mm2_instance;
+        //reproc::process m_mm2_instance;
 
         //! Current ticker
         t_synchronized_ticker m_current_ticker{g_primary_dex_coin};
@@ -127,7 +127,7 @@ namespace atomic_dex
         double m_balance_factor{1.0};
 
         //! Refresh the orderbook registry (internal)
-        nlohmann::json prepare_batch_orderbook();
+        nlohmann::json prepare_batch_orderbook(bool is_a_reset);
 
         //! Batch balance / tx
         std::tuple<nlohmann::json, std::vector<std::string>, std::vector<std::string>> prepare_batch_balance_and_tx(bool only_tx = false) const;

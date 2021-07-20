@@ -20,7 +20,7 @@ namespace
     web::http::client::http_client_config g_cfg{[]() {
       web::http::client::http_client_config cfg;
       cfg.set_validate_certificates(false);
-      cfg.set_timeout(std::chrono::seconds(5));
+      cfg.set_timeout(std::chrono::seconds(30));
       return cfg;
     }()};
     t_http_client_ptr     g_coingecko_client = std::make_unique<web::http::client::http_client>(FROM_STD_STR(g_coingecko_endpoint), g_cfg);
@@ -126,6 +126,8 @@ namespace atomic_dex::coingecko::api
     {
         answer.current_price = std::to_string(j.at("current_price").get<double>());
         boost::algorithm::replace_all(answer.current_price, ",", ".");
+        answer.total_volume = std::to_string(j.at("total_volume").get<double>());
+        boost::algorithm::replace_all(answer.total_volume, ",", ".");
         std::ostringstream ss;
         ss << std::setprecision(2) << j.at("price_change_percentage_24h").get<double>();
         answer.price_change_24h = ss.str();

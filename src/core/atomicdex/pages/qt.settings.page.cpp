@@ -16,11 +16,10 @@
 
 //! QT
 #include <QDebug>
+#include <QFile>
 #include <QJsonDocument>
 #include <QLocale>
-
-//! PCH
-#include "atomicdex/pch.hpp"
+#include <QSettings>
 
 //! Deps
 #include <boost/algorithm/string/case_conv.hpp>
@@ -33,6 +32,7 @@
 #include "atomicdex/pages/qt.settings.page.hpp"
 #include "atomicdex/services/mm2/mm2.service.hpp"
 #include "atomicdex/services/price/coingecko/coingecko.wallet.charts.hpp"
+#include "atomicdex/services/price/global.provider.hpp"
 #include "atomicdex/utilities/global.utilities.hpp"
 #include "atomicdex/utilities/qt.utilities.hpp"
 
@@ -41,6 +41,7 @@ namespace
     void
     copy_icon(const QString icon_filepath, const QString icons_path_directory, const std::string& ticker)
     {
+        SPDLOG_INFO("copying icon");
         if (not icon_filepath.isEmpty())
         {
             const fs::path& suffix = fs::path(icon_filepath.toStdString()).extension();
@@ -48,6 +49,7 @@ namespace
                 icon_filepath.toStdString(), fs::path(icons_path_directory.toStdString()) / (boost::algorithm::to_lower_copy(ticker) + suffix.string()),
                 get_override_options());
         }
+        SPDLOG_INFO("copying icon finished");
     }
 } // namespace
 
@@ -57,6 +59,7 @@ namespace atomic_dex
     settings_page::settings_page(entt::registry& registry, ag::ecs::system_manager& system_manager, std::shared_ptr<QApplication> app, QObject* parent) :
         QObject(parent), system(registry), m_system_manager(system_manager), m_app(app)
     {
+        SPDLOG_INFO("settings_page created");
     }
 } // namespace atomic_dex
 
@@ -73,22 +76,19 @@ namespace atomic_dex
 namespace atomic_dex
 {
     QString
-    settings_page::get_empty_string() const
-    {
-        return m_empty_string;
-    }
-
-    QString
     settings_page::get_current_lang() const
     {
-        return QString::fromStdString(m_config.current_lang);
+        QSettings& settings = entity_registry_.ctx<QSettings>();
+        return settings.value("CurrentLang").toString();
     }
 
     void
     atomic_dex::settings_page::set_current_lang(QString new_lang)
     {
         const std::string new_lang_std = new_lang.toStdString();
-        change_lang(m_config, new_lang_std);
+        QSettings&        settings     = entity_registry_.ctx<QSettings>();
+        settings.setValue("CurrentLang", new_lang);
+        settings.sync();
 
         auto get_locale = [](const std::string& current_lang)
         {
@@ -112,14 +112,14 @@ namespace atomic_dex
         };
 
         SPDLOG_INFO("Locale before parsing AtomicDEX settings: {}", QLocale().name().toStdString());
-        QLocale::setDefault(get_locale(m_config.current_lang));
+        QLocale::setDefault(get_locale(new_lang.toStdString()));
         SPDLOG_INFO("Locale after parsing AtomicDEX settings: {}", QLocale().name().toStdString());
         [[maybe_unused]] auto res = this->m_translator.load("atomic_defi_" + new_lang, QLatin1String(":/atomic_defi_design/assets/languages"));
         assert(res);
         this->m_app->installTranslator(&m_translator);
         this->m_qml_engine->retranslate();
         emit onLangChanged();
-        // emit langChanged();
+        SPDLOG_INFO("Post lang changed");
     }
 
     bool
@@ -159,7 +159,27 @@ namespace atomic_dex
     void
     settings_page::set_current_currency(const QString& current_currency)
     {
-        if (current_currency.toStdString() != m_config.current_currency)
+        bool        can_proceed = true;
+        std::string reason      = "";
+        if (atomic_dex::is_this_currency_a_fiat(m_config, current_currency.toStdString()))
+        {
+            if (!m_system_manager.get_system<global_price_service>().is_fiat_available(current_currency.toStdString()))
+            {
+                can_proceed = false;
+                reason      = "rate for fiat: " + current_currency.toStdString() + " not available";
+            }
+        }
+        else
+        {
+            if (!m_system_manager.get_system<global_price_service>().is_currency_available(current_currency.toStdString()))
+            {
+                can_proceed = false;
+                reason      = "rate for currency " + current_currency.toStdString() + " not available";
+            }
+        }
+
+
+        if (current_currency.toStdString() != m_config.current_currency && can_proceed)
         {
             SPDLOG_INFO("change currency {} to {}", m_config.current_currency, current_currency.toStdString());
             atomic_dex::change_currency(m_config, current_currency.toStdString());
@@ -170,6 +190,13 @@ namespace atomic_dex
             emit onCurrencyChanged();
             emit onCurrencySignChanged();
             emit onFiatSignChanged();
+        }
+        else
+        {
+            if (!reason.empty())
+            {
+                SPDLOG_ERROR("cannot change currency for reason: {}", reason);
+            }
         }
     }
 
@@ -182,12 +209,19 @@ namespace atomic_dex
     void
     settings_page::set_current_fiat(const QString& current_fiat)
     {
-        if (current_fiat.toStdString() != m_config.current_fiat)
+        if (m_system_manager.get_system<global_price_service>().is_fiat_available(current_fiat.toStdString()))
         {
-            SPDLOG_INFO("change fiat {} to {}", m_config.current_fiat, current_fiat.toStdString());
-            atomic_dex::change_fiat(m_config, current_fiat.toStdString());
-            m_system_manager.get_system<coingecko_wallet_charts_service>().manual_refresh("set_current_fiat");
-            emit onFiatChanged();
+            if (current_fiat.toStdString() != m_config.current_fiat)
+            {
+                SPDLOG_INFO("change fiat {} to {}", m_config.current_fiat, current_fiat.toStdString());
+                atomic_dex::change_fiat(m_config, current_fiat.toStdString());
+                m_system_manager.get_system<coingecko_wallet_charts_service>().manual_refresh("set_current_fiat");
+                emit onFiatChanged();
+            }
+        }
+        else
+        {
+            SPDLOG_ERROR("Cannot change fiat, because other rates are not available");
         }
     }
 } // namespace atomic_dex
@@ -210,7 +244,7 @@ namespace atomic_dex
     void
     settings_page::init_lang()
     {
-        set_current_lang(QString::fromStdString(m_config.current_lang));
+        set_current_lang(get_current_lang());
     }
 } // namespace atomic_dex
 
@@ -220,10 +254,8 @@ namespace atomic_dex
     QStringList
     settings_page::get_available_langs() const
     {
-        QStringList out;
-        out.reserve(m_config.available_lang.size());
-        for (auto&& cur_lang: m_config.available_lang) { out.push_back(QString::fromStdString(cur_lang)); }
-        return out;
+        QSettings& settings = entity_registry_.ctx<QSettings>();
+        return settings.value("AvailableLang").toStringList();
     }
 
     QStringList
@@ -273,7 +305,7 @@ namespace atomic_dex
     QString
     settings_page::get_custom_coins_icons_path() const
     {
-        return QString::fromStdString(utils::get_runtime_coins_path().string());
+        return std_path_to_qstring(utils::get_runtime_coins_path());
     }
 
     void
@@ -511,13 +543,39 @@ namespace atomic_dex
     settings_page::reset_coin_cfg()
     {
         using namespace std::string_literals;
-        const std::string wallet_name     = qt_wallet_manager::get_default_wallet_name().toStdString();
-        const std::string wallet_cfg_file = std::string(atomic_dex::get_raw_version()) + "-coins"s + "."s + wallet_name + ".json"s;
+        const std::string wallet_name                = qt_wallet_manager::get_default_wallet_name().toStdString();
+        const std::string wallet_cfg_file            = std::string(atomic_dex::get_raw_version()) + "-coins"s + "."s + wallet_name + ".json"s;
+        std::string       wallet_custom_cfg_filename = "custom-tokens."s + wallet_name + ".json"s;
+        const fs::path    wallet_custom_cfg_path{utils::get_atomic_dex_config_folder() / wallet_custom_cfg_filename};
         const fs::path    wallet_cfg_path{utils::get_atomic_dex_config_folder() / wallet_cfg_file};
         const fs::path    mm2_coins_file_path{atomic_dex::utils::get_current_configs_path() / "coins.json"};
-        const fs::path    ini_file_path  = atomic_dex::utils::get_current_configs_path() / "cfg.ini";
-        const fs::path    logo_path      = atomic_dex::utils::get_logo_path();
-        const auto        functor_remove = [](auto&& path_to_remove)
+        const fs::path    ini_file_path      = atomic_dex::utils::get_current_configs_path() / "cfg.ini";
+        const fs::path    cfg_json_file_path = atomic_dex::utils::get_current_configs_path() / "cfg.json";
+        const fs::path    logo_path          = atomic_dex::utils::get_logo_path();
+        const fs::path    theme_path         = atomic_dex::utils::get_themes_path();
+
+
+        if (fs::exists(wallet_custom_cfg_path))
+        {
+            nlohmann::json custom_config_json_data;
+            QFile          fs;
+            fs.setFileName(std_path_to_qstring(wallet_custom_cfg_path));
+            fs.open(QIODevice::ReadOnly | QIODevice::Text);
+
+            //! Read Contents
+            custom_config_json_data = nlohmann::json::parse(QString(fs.readAll()).toStdString());
+            fs.close();
+
+            //! Modify
+            for (auto&& [key, value]: custom_config_json_data.items()) { value["active"] = false; }
+
+            //! Write
+            fs.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate);
+            fs.write(QString::fromStdString(custom_config_json_data.dump()).toUtf8());
+            fs.close();
+        }
+
+        const auto functor_remove = [](auto&& path_to_remove)
         {
             if (fs::exists(path_to_remove))
             {
@@ -532,11 +590,12 @@ namespace atomic_dex
                 }
                 if (ec)
                 {
-                    SPDLOG_ERROR("error when removing {}: {}", path_to_remove.string(), ec.message());
+                    LOG_PATH("error when removing {}", path_to_remove);
+                    SPDLOG_ERROR("error: {}", ec.message());
                 }
                 else
                 {
-                    SPDLOG_INFO("Successfully removed {}", path_to_remove.string());
+                    LOG_PATH("Successfully removed {}", path_to_remove);
                 }
             }
         };
@@ -544,7 +603,9 @@ namespace atomic_dex
         functor_remove(std::move(wallet_cfg_path));
         functor_remove(std::move(mm2_coins_file_path));
         functor_remove(std::move(ini_file_path));
+        functor_remove(std::move(cfg_json_file_path));
         functor_remove(std::move(logo_path));
+        functor_remove(std::move(theme_path));
     }
 
     QStringList

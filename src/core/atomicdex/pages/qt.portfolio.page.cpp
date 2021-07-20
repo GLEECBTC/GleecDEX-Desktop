@@ -29,12 +29,13 @@ namespace atomic_dex
 {
     portfolio_page::portfolio_page(entt::registry& registry, ag::ecs::system_manager& system_manager, QObject* parent) :
         QObject(parent), system(registry), m_system_manager(system_manager), m_portfolio_mdl(new portfolio_model(system_manager, dispatcher_, this)),
-        m_global_cfg_mdl(new global_coins_cfg_model(this))
+        m_global_cfg_mdl(new global_coins_cfg_model(entity_registry_, this))
     {
         emit portfolioChanged();
         this->dispatcher_.sink<update_portfolio_values>().connect<&portfolio_page::on_update_portfolio_values_event>(*this);
         this->dispatcher_.sink<band_oracle_refreshed>().connect<&portfolio_page::on_band_oracle_refreshed>(*this);
         this->dispatcher_.sink<coin_cfg_parsed>().connect<&portfolio_page::on_coin_cfg_parsed>(*this);
+        SPDLOG_INFO("portfolio_page created");
     }
 
     portfolio_model*
@@ -81,7 +82,7 @@ namespace atomic_dex
             this->m_current_balance_all = std::move(current_fiat_all_balance);
             emit       onFiatBalanceAllChanged();
             const auto currency = m_system_manager.get_system<settings_page>().get_current_currency().toStdString();
-            if (currency != g_primary_dex_coin && currency != g_second_primary_dex_coin)
+            if (currency != g_primary_dex_coin && currency != g_second_primary_dex_coin && currency != "BTC")
             {
                 m_main_current_balance_all = m_current_balance_all;
                 emit onMainFiatBalanceAllChanged();
@@ -99,7 +100,7 @@ namespace atomic_dex
     void
     portfolio_page::on_update_portfolio_values_event(const update_portfolio_values& evt)
     {
-        SPDLOG_INFO("Updating portfolio values with model: {}", evt.with_update_model);
+        //SPDLOG_INFO("Updating portfolio values with model: {}", evt.with_update_model);
 
         bool res = true;
         if (evt.with_update_model)
@@ -115,6 +116,7 @@ namespace atomic_dex
         if (!ec && res)
         {
             set_current_balance_fiat_all(QString::fromStdString(fiat_balance_std));
+            m_portfolio_mdl->adjust_percent_current_currency(QString::fromStdString(fiat_balance_std));
         }
     }
 
@@ -232,5 +234,11 @@ namespace atomic_dex
     portfolio_page::get_main_balance_fiat_all() const
     {
         return m_main_current_balance_all;
+    }
+
+    int
+    portfolio_page::get_neareast_point(int timestamp) const
+    {
+        return m_system_manager.get_system<coingecko_wallet_charts_service>().get_neareast_point(timestamp);
     }
 } // namespace atomic_dex

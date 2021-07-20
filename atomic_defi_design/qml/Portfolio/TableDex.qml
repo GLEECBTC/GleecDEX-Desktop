@@ -15,6 +15,8 @@ import "../Components"
 import "../Constants"
 
 Item {
+    property alias innerList: list
+
     width: parent.width
     height: 150+(list.count*65)
     visible: true
@@ -132,7 +134,7 @@ Item {
             y: 60
             width: parent.width
             height: parent.height - 50
-
+            interactive: false
             model: portfolio_coins
             cacheBuffer: 2000
             scrollbar_visible: false

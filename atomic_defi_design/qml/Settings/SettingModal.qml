@@ -1,11 +1,12 @@
+//! Qt Imports
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Controls 2.15
 import QtGraphicalEffects 1.0
 import Qt.labs.settings 1.0
-
-
+import QtQml 2.12
 import QtQuick.Window 2.12
+import QtQuick.Controls.Universal 2.12
 
 import Qaterial 1.0 as Qaterial
 
@@ -17,14 +18,20 @@ import "../Constants"
 Qaterial.Dialog {
 
     function disconnect() {
-        API.app.disconnect()
-        onDisconnect()
+        
+        Qaterial.DialogManager.showDialog({title: qsTr("Confirm Logout"),text: qsTr("Are you sure you want to log out?"),iconSource: Qaterial.Icons.logout,standardButtons: Dialog.Yes | Dialog.Cancel, onAccepted: function(){
+            Qaterial.DialogManager.close()
+            app.currentWalletName = ""
+            API.app.disconnect()
+            onDisconnect()
+        }})
+        
     }
 
     readonly property string mm2_version: API.app.settings_pg.get_mm2_version()
     property var recommended_fiats: API.app.settings_pg.get_recommended_fiats()
     property var fiats: API.app.settings_pg.get_available_fiats()
-
+    property var enableable_coins_count: enableable_coins_count_combo_box.currentValue
 
 
     id: setting_modal
@@ -152,9 +159,34 @@ Qaterial.Dialog {
                                 }
                                 DefaultSwitch {
                                     Layout.alignment: Qt.AlignVCenter
-                                    //text: qsTr("Enable Desktop Notifications")
                                     Component.onCompleted: checked = API.app.settings_pg.notification_enabled
                                     onCheckedChanged: API.app.settings_pg.notification_enabled = checked
+                                }
+                            }
+                            RowLayout {
+                                width: parent.width-30
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                height: 50
+                                DexLabel {
+                                    Layout.alignment: Qt.AlignVCenter
+                                    Layout.fillWidth: true
+                                    text: qsTr("Maximum number of enabled coins")
+                                }
+                                DexComboBox {
+                                    id: enableable_coins_count_combo_box
+                                    model: [10, 20, 50, 75, 100, 150, 200]
+                                    currentIndex: model.indexOf(parseInt(atomic_settings2.value("MaximumNbCoinsEnabled")))
+                                    onCurrentIndexChanged: atomic_settings2.setValue("MaximumNbCoinsEnabled", model[currentIndex])
+                                    delegate: ItemDelegate {
+                                        width: enableable_coins_count_combo_box.width
+                                        font.weight: enableable_coins_count_combo_box.currentIndex === index ? Font.DemiBold : Font.Normal
+                                        highlighted: ListView.isCurrentItem
+                                        enabled: parseInt(modelData) >= API.app.portfolio_pg.portfolio_mdl.length
+                                        contentItem: DefaultText {
+                                            color: enabled ? Style.colorWhite1 : Style.colorWhite8
+                                            text: modelData
+                                        }
+                                     }
                                 }
                             }
                             RowLayout {
@@ -188,7 +220,7 @@ Qaterial.Dialog {
                                     implicitHeight: 37
                                     onClicked: {
                                         restart_modal.open()
-                                        restart_modal.item.task_before_restart = () => { API.app.settings_pg.reset_coin_cfg() }
+                                        restart_modal.item.onTimerEnded = () => { API.app.settings_pg.reset_coin_cfg() }
                                     }
                                 }
                             }
@@ -233,27 +265,16 @@ Qaterial.Dialog {
                                 DexLabel {
                                     Layout.alignment: Qt.AlignVCenter
                                     Layout.fillWidth: true
-                                    text: qsTr("Use QtTextRendering Or NativeTextRendering")
+                                    text: qsTr("Current Font")
                                 }
-                                DefaultSwitch {
-                                    property bool firstTime: true
-                                    Layout.alignment: Qt.AlignHCenter
-                                    Layout.leftMargin: combo_fiat.Layout.leftMargin
-                                    Layout.rightMargin: Layout.leftMargin
-                                    checked: parseInt(atomic_settings2.value("FontMode")) === 1
-                                    //text: qsTr("Use QtTextRendering Or NativeTextRendering")
-                                    onCheckedChanged: {
-                                        if(checked){
-                                            atomic_settings2.setValue("FontMode", 1)
-                                        }else {
-                                            atomic_settings2.setValue("FontMode", 0)
-                                        }
-                                        if(firstTime) {
-                                            firstTime = false
-                                        }else {
-                                            restart_modal.open()
-                                        }
-
+                                DexComboBox {
+                                    id: dexFont
+                                    editable: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                    model: ["Ubuntu", "Montserrat", "Roboto"]
+                                    Component.onCompleted: {
+                                        let current = _font.fontFamily
+                                        currentIndex = dexFont.model.indexOf(current)
                                     }
                                 }
                             }
@@ -275,11 +296,6 @@ Qaterial.Dialog {
                                         let current = atomic_settings2.value("CurrentTheme")
                                         currentIndex = model.indexOf(current)
                                     }
-                                    onCurrentTextChanged: {
-//                                        atomic_settings2.setValue("CurrentTheme", currentText)
-//                                        atomic_settings2.sync()
-//                                        app.load_theme(currentText.replace(".json",""))
-                                    }
                                 }
                             }
                             RowLayout {
@@ -292,12 +308,14 @@ Qaterial.Dialog {
                                     text: qsTr("")
                                 }
                                 DexButton {
-                                    text: qsTr("Apply Theme")
+                                    text: qsTr("Apply Changes")
                                     implicitHeight: 37
                                      onClicked: {
                                         atomic_settings2.setValue("CurrentTheme", dexTheme.currentText)
                                         atomic_settings2.sync()
                                         app.load_theme(dexTheme.currentText.replace(".json",""))
+                                        _font.fontFamily = dexFont.currentText
+                                        
                                     }
                                 }
                             }
@@ -321,6 +339,32 @@ Qaterial.Dialog {
                             ModalLoader {
                                 id: camouflage_password_modal
                                 sourceComponent: CamouflagePasswordModal {}
+                            }
+
+                            // Enabled 2FA option. (Disabled on Linux since the feature is not available on this platform yet)
+                            RowLayout {
+                                enabled: Qt.platform.os !== "linux" // Disable for Linux.
+                                Component.onCompleted: console.log(Qt.platform.os)
+                                visible: enabled
+                                width: parent.width-30
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                height: 60
+                                DexLabel {
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                    text: qsTr("Ask system's password before sending coins ? (2FA)")
+                                }
+                                DexSwitch {
+                                    implicitHeight: 37
+                                    checked: parseInt(atomic_settings2.value("2FA")) === 1
+                                    onCheckedChanged: {
+                                        if (checked)
+                                            atomic_settings2.setValue("2FA", 1)
+                                        else
+                                            atomic_settings2.setValue("2FA", 0)
+                                        atomic_settings2.sync()
+                                    }
+                                }
                             }
 
                             RowLayout {
@@ -352,22 +396,6 @@ Qaterial.Dialog {
                                     text: qsTr("Open")
                                     implicitHeight: 37
                                     onClicked: camouflage_password_modal.open()
-                                }
-                            }
-
-                            RowLayout {
-                                width: parent.width-30
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                height: 60
-                                DexLabel {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    Layout.fillWidth: true
-                                    //text:
-                                }
-                                DexButton {
-                                    text: qsTr("Delete Wallet")
-                                    implicitHeight: 37
-                                    onClicked: delete_wallet_modal.open()
                                 }
                             }
                         }
@@ -461,7 +489,6 @@ Qaterial.Dialog {
         height: 50
         anchors.bottom: parent.bottom
         DexSelectableButton {
-            enabled: false
             selected: true
             anchors.right: logout_button.left
             anchors.rightMargin: 10
@@ -469,8 +496,9 @@ Qaterial.Dialog {
             anchors.verticalCenter: parent.verticalCenter
             text: ""
             height: 40
-            width: 175
+            width: _update_row.width+20
             Row {
+                id: _update_row
                 anchors.centerIn: parent
                 Qaterial.ColorIcon {
                     anchors.verticalCenter: parent.verticalCenter
@@ -496,8 +524,9 @@ Qaterial.Dialog {
             anchors.verticalCenter: parent.verticalCenter
             text: ""
             height: 40
-            width: 130
+            width: _logout_row.width+20
             Row {
+                id: _logout_row
                 anchors.centerIn: parent
                 Qaterial.ColorIcon {
                     anchors.verticalCenter: parent.verticalCenter
@@ -511,7 +540,10 @@ Qaterial.Dialog {
                 }
                 opacity: .6
             }
-            onClicked: disconnect()
+            onClicked: {
+                disconnect()
+                setting_modal.close()
+            }
 
         }
 
@@ -523,9 +555,5 @@ Qaterial.Dialog {
             height: 1.5
         }
 
-    }
-
-    Component.onCompleted: {
-        //open()
     }
 }

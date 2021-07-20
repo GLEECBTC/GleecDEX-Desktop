@@ -50,23 +50,6 @@ namespace atomic_dex
     coingecko_provider::on_coin_enabled(const coin_enabled& evt)
     {
         dispatcher_.trigger<coin_fully_initialized>(evt.tickers);
-        /*std::vector<std::string>             ids;
-        coingecko::api::t_coingecko_registry registry;
-        const auto*                          global_cfg_system = m_system_manager.get_system<portfolio_page>().get_global_cfg();
-        for (auto&& ticker: evt.tickers)
-        {
-            const auto config = global_cfg_system->get_coin_info(ticker);
-            //!
-            if (config.coingecko_id != "test-coin")
-            {
-                ids.emplace_back(config.coingecko_id);
-                registry[config.coingecko_id] = config.ticker;
-            }
-        }
-
-        internal_update(ids, registry, false, evt.tickers);*/
-
-        //! tmp
         this->update_ticker_and_provider();
     }
 
@@ -94,7 +77,7 @@ namespace atomic_dex
     std::string
     coingecko_provider::get_change_24h(const std::string& ticker) const
     {
-        // SPDLOG_INFO("ticker change 24h: {}", ticker);
+        //SPDLOG_INFO("ticker change 24h: {}", ticker);
         return get_info_answer(ticker).price_change_24h;
     }
 
@@ -110,6 +93,12 @@ namespace atomic_dex
     {
         return get_info_answer(ticker).current_price;
     }
+
+    std::string
+    coingecko_provider::get_total_volume(const std::string& ticker) const
+    {
+        return get_info_answer(ticker).total_volume;
+    }
 } // namespace atomic_dex
 
 //! Private member functions
@@ -119,10 +108,26 @@ namespace atomic_dex
     coingecko_provider::internal_update(
         const std::vector<std::string>& ids, const std::unordered_map<std::string, std::string>& registry, bool should_move, std::vector<std::string> tickers)
     {
+        static std::atomic_uint16_t nb_try = 0;
+        nb_try += 1;
         if (!ids.empty())
         {
             SPDLOG_INFO("Processing internal_update");
 
+            auto error_functor = [this, ids, registry, should_move, tickers](pplx::task<void> previous_task)
+            {
+              try
+              {
+                  previous_task.wait();
+              }
+              catch (const std::exception& e)
+              {
+                  SPDLOG_ERROR("pplx task error from coingecko::api::async_market_infos: {} - nb_try {}", e.what(), nb_try.load());
+                  using namespace std::chrono_literals;
+                  std::this_thread::sleep_for(1s);
+                  this->internal_update(ids, registry, should_move, tickers);
+              };
+            };
             t_coingecko_market_infos_request request{.ids = std::move(ids)};
             const auto                       answer_functor = [this, registry, should_move, tickers](web::http::http_response resp) {
                 std::string body = TO_STD_STR(resp.extract_string(true).get());
@@ -154,19 +159,21 @@ namespace atomic_dex
                     {
                         dispatcher_.trigger<fiat_rate_updated>("");
                     }
-                    SPDLOG_INFO("Coingecko rates successfully updated");
+                    SPDLOG_INFO("Coingecko rates successfully updated after nb_try: {}", nb_try.load());
+                    nb_try = 0;
                 }
                 else
                 {
                     SPDLOG_ERROR("Error during the rpc call to coingecko: {}", body);
                 }
             };
-            coingecko::api::async_market_infos(std::move(request)).then(answer_functor).then(&handle_exception_pplx_task);
+            coingecko::api::async_market_infos(std::move(request)).then(answer_functor).then(error_functor);
         }
         else
         {
             //! If it's only test coin
             dispatcher_.trigger<coin_fully_initialized>(tickers);
+            nb_try = 0;
         }
     }
 
@@ -177,6 +184,6 @@ namespace atomic_dex
         std::shared_lock lock(m_market_mutex);
         // SPDLOG_INFO("Looking for ticker: {}", ticker);
         const auto it = m_market_registry.find(final_ticker);
-        return it != m_market_registry.cend() ? it->second : coingecko::api::single_infos_answer{.price_change_24h = "0.00", .current_price = "0.00"};
+        return it != m_market_registry.cend() ? it->second : coingecko::api::single_infos_answer{.price_change_24h = "0.00", .current_price = "0.00", .total_volume = "0.00"};
     }
 } // namespace atomic_dex

@@ -40,7 +40,7 @@ Item {
         spacing: 10
         Row {
             Layout.alignment: Qt.AlignVCenter
-            Layout.preferredWidth: 125
+            Layout.preferredWidth: 130
             leftPadding: -10
             spacing: 5
             Image {
@@ -56,7 +56,8 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 leftPadding: 2
                 text: send + " " + atomic_qt_utilities.retrieve_main_ticker(coin)
-                font.pixelSize: Style.textSizeSmall1
+                font.family: _font.fontFamily
+                font.pixelSize: 10
 
             }
         }
@@ -68,42 +69,48 @@ Item {
 
             width: 250
             contentItem: DexLabelUnlinked {
-                text_value: qsTr(" %1 is not Enabled - do you want to enable it to be able to select %2 best orders ?<br><a href='#'>Yes</a> -<a href='#no'>No</a>").arg(coin).arg(coin)
+                text_value: qsTr(" %1 is not enabled - Do you want to enable it to be able to select %2 best orders ?<br><a href='#'>Yes</a> - <a href='#no'>No</a>").arg(coin).arg(coin)
                 wrapMode: DefaultText.Wrap
                 width: 250
                 onLinkActivated: {
                     if(link==="#no") {
                         _tooltip.close()
                     }else {
-                        API.app.enable_coins([coin])
-                        _control.coinEnable = true
-                        _tooltip.close()
+                        if (API.app.enable_coins([coin]) === true) {
+                            _control.coinEnable = true
+                            _tooltip.close()
+                        }
+                        else {
+                            cannot_enable_coin_modal.open()
+                        }
                     }
+                }
+
+                ModalLoader {
+                    property string coin_to_enable_ticker: coin
+                    id: cannot_enable_coin_modal
+                    sourceComponent: CannotEnableCoinModal { coin_to_enable_ticker: cannot_enable_coin_modal.coin_to_enable_ticker }
                 }
             }
             delay: 200
         }
 
-        DefaultText {
+        DexLabel {
             Layout.alignment: Qt.AlignVCenter
             Layout.preferredWidth: 70
             text: price_fiat+API.app.settings_pg.current_fiat_sign
-            font: theme.textType.caption
+            font.family: _font.fontFamily
+            font.pixelSize: 10
             horizontalAlignment: Label.AlignRight
             opacity: 1
 
         }
-        Item {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-
-
-        }
-        DefaultText {
+        DexLabel {
             Layout.alignment: Qt.AlignVCenter
             
             text: cex_rates==="0"? "N/A" : parseFloat(cex_rates)>0? "+"+parseFloat(cex_rates).toFixed(2)+"%" : parseFloat(cex_rates).toFixed(2)+"%"
-
+            font.family: _font.fontFamily
+            font.pixelSize: 10
 
             Behavior on rightPadding {
                 NumberAnimation {
@@ -113,7 +120,6 @@ Item {
 
             color:cex_rates==="0"? Qt.darker(theme.foregroundColor) : parseFloat(cex_rates)<0? Style.colorGreen : Style.colorRed
             horizontalAlignment: Label.AlignRight
-            font.pixelSize: Style.textSizeSmall1
             opacity: 1
 
         }
@@ -128,6 +134,7 @@ Item {
             if(!API.app.portfolio_pg.global_cfg_mdl.get_coin_info(coin).is_enabled){
                 _tooltip.open()
             }else {
+                app.pairChanged(base_ticker, coin)
                 API.app.trading_pg.orderbook.select_best_order(uuid)
             }
             
@@ -137,6 +144,7 @@ Item {
     }
     HorizontalLine {
         width: parent.width
+        opacity: .4
     }
 
 }
