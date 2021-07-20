@@ -15,8 +15,8 @@
  ******************************************************************************/
 
 //! Project Headers
-#include "atomicdex/models/qt.portfolio.model.hpp"
 #include "atomicdex/models/qt.portfolio.proxy.filter.model.hpp"
+#include "atomicdex/models/qt.portfolio.model.hpp"
 #include "atomicdex/pages/qt.portfolio.page.hpp"
 
 namespace atomic_dex
@@ -68,6 +68,7 @@ namespace atomic_dex
         case portfolio_model::CoinType:
         case portfolio_model::Address:
         case portfolio_model::PrivKey:
+        case portfolio_model::PercentMainCurrency:
             return false;
         }
     }
@@ -84,6 +85,15 @@ namespace atomic_dex
         {
             bool is_enabled = this->sourceModel()->data(idx, atomic_dex::portfolio_model::MultiTickerCurrentlyEnabled).toBool();
             if (not is_enabled)
+            {
+                return false;
+            }
+        }
+
+        // Filter by ticker name if `m_search_exp` is not empty.
+        if (!m_search_exp.isEmpty())
+        {
+            if (not ticker.contains(m_search_exp, Qt::CaseInsensitive))
             {
                 return false;
             }
@@ -190,6 +200,22 @@ namespace atomic_dex
     portfolio_proxy_model::set_with_fiat_balance(bool value)
     {
         m_with_fiat_balance = value;
+    }
+
+    void
+    portfolio_proxy_model::set_search_exp(QString search_exp)
+    {
+        if (search_exp != m_search_exp)
+        {
+            m_search_exp = std::move(search_exp);
+            this->invalidateFilter();
+        }
+    }
+
+    QString
+    portfolio_proxy_model::get_search_exp() const
+    {
+        return m_search_exp;
     }
 
     QVariantMap

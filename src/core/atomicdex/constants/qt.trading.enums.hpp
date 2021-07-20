@@ -56,7 +56,11 @@ namespace atomic_dex
             PriceFieldNotFilled                      = 3, ///< Price empty or 0
             VolumeFieldNotFilled                     = 4, ///< Volume empty or 0
             VolumeIsLowerThanTheMinimum              = 5, ///< Volume field < 0.00777
-            ReceiveVolumeIsLowerThanTheMinimum       = 6
+            ReceiveVolumeIsLowerThanTheMinimum       = 6,
+            LeftParentChainNotEnabled                = 7,
+            LeftParentChainNotEnoughBalance          = 8,
+            RightParentChainNotEnoughBalance         = 9,
+            RightParentChainNotEnabled               = 10,
         };
 
         Q_ENUM(TradingErrorEnum)
@@ -64,8 +68,28 @@ namespace atomic_dex
       private:
         explicit TradingErrorGadget();
     };
+
+    class ENTT_API SelectedOrderGadget
+    {
+        Q_GADGET
+
+      public:
+        enum SelectedOrderStatus
+        {
+            None                    = 0, /// The selected order is at the initial state
+            DataChanged             = 1, ///< One of the data has changed (volume,price,min_volume...)
+            BetterPriceAvailable    = 2, ///< if a asks order have a better price than the selected one
+            OrderNotExistingAnymore = 3  ///< The order has been cancelled or matched
+        };
+
+        Q_ENUM(SelectedOrderStatus)
+
+      private:
+        explicit SelectedOrderGadget();
+    };
 } // namespace atomic_dex
 
-using MarketMode   = atomic_dex::MarketModeGadget::MarketModeEnum;
-using TradingError = atomic_dex::TradingErrorGadget::TradingErrorEnum;
-using TradingMode  = atomic_dex::TradingModeGadget::TradingModeEnum;
+using MarketMode          = atomic_dex::MarketModeGadget::MarketModeEnum;
+using TradingError        = atomic_dex::TradingErrorGadget::TradingErrorEnum;
+using TradingMode         = atomic_dex::TradingModeGadget::TradingModeEnum;
+using SelectedOrderStatus = atomic_dex::SelectedOrderGadget::SelectedOrderStatus;

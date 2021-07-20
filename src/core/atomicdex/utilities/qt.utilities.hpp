@@ -23,6 +23,7 @@
 #include <QStringList>
 #include <QVariant>
 #include <QVariantList>
+#include <QCryptographicHash> //> QCryptographicHash::hash, QCryptographicHash::Keccak_256
 
 //! Project Headers
 #include "atomicdex/config/app.cfg.hpp"
@@ -44,6 +45,7 @@ namespace atomic_dex
         return std::make_tuple(value, value, false);
     }
 
+    QString              std_path_to_qstring(const fs::path& path);
     QStringList          vector_std_string_to_qt_string_list(const std::vector<std::string>& vec);
     ENTT_API QStringList qt_variant_list_to_qt_string_list(const QVariantList& variant_list);
     QJsonArray           nlohmann_json_array_to_qt_json_array(const nlohmann::json& j);
@@ -51,6 +53,12 @@ namespace atomic_dex
     QString              retrieve_change_24h(
                      const atomic_dex::coingecko_provider& coingecko, const atomic_dex::coin_config& coin, const atomic_dex::cfg& config,
                      const ag::ecs::system_manager& system_manager);
+    
+    [[nodiscard]] QString
+    inline sha256_qstring_from_qt_byte_array(const QByteArray& byte_array)
+    {
+        return QLatin1String(QCryptographicHash::hash(byte_array, QCryptographicHash::Sha256).toHex());
+    }
 
     class ENTT_API qt_utilities : public QObject
     {

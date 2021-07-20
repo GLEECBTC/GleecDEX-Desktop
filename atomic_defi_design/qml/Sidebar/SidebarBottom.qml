@@ -6,17 +6,15 @@ import "../Constants"
 
 ColumnLayout {
     id: window_layout
-
     transformOrigin: Item.Center
     spacing: 0
-
     SidebarLine {
         dashboard_index: -1
         text_value: sidebar.expanded? qsTr("Settings") : ""
         image: General.image_path + "menu-settings-white.svg"
         Layout.fillWidth: true
         separator: false
-        onCheckedChanged: settings_modal.open()
+        onCheckedChanged: setting_modal.open()
     }
 
     SidebarLine {
@@ -34,14 +32,5 @@ ColumnLayout {
         Layout.fillWidth: true
         separator: false
         checked: General.privacy_mode
-    }
-
-    SidebarLine {
-        dashboard_index: idx_dashboard_light_ui
-        text_value:sidebar.expanded? qsTr("Light UI") : ""
-        image: ""
-        Layout.fillWidth: true
-        separator: false
-        checked: !Style.dark_theme
     }
 }

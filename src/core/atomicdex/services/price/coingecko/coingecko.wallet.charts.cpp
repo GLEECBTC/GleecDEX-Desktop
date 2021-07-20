@@ -4,6 +4,7 @@
 #include "atomicdex/api/coingecko/coingecko.hpp"
 #include "atomicdex/models/qt.portfolio.model.hpp"
 #include "atomicdex/pages/qt.portfolio.page.hpp"
+#include "atomicdex/pages/qt.settings.page.hpp"
 #include "atomicdex/services/price/coingecko/coingecko.wallet.charts.hpp"
 #include "atomicdex/services/price/global.provider.hpp"
 #include "atomicdex/utilities/qt.utilities.hpp"
@@ -37,6 +38,7 @@ namespace atomic_dex
     {
         SPDLOG_INFO("coingecko_wallet_charts_service created");
         m_update_clock = std::chrono::high_resolution_clock::now();
+        this->disable();
     }
 
     coingecko_wallet_charts_service::~coingecko_wallet_charts_service() { SPDLOG_INFO("coingecko_wallet_charts_service destroyed"); }
@@ -100,7 +102,7 @@ namespace atomic_dex
                 auto        now                  = std::chrono::system_clock::now();
                 std::size_t timestamp            = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
                 out[out.size() - 1]["timestamp"] = timestamp;
-                out[out.size() - 1]["total"]     = m_system_manager.get_system<portfolio_page>().get_balance_fiat_all().toStdString();
+                out[out.size() - 1]["total"]     = m_system_manager.get_system<portfolio_page>().get_main_balance_fiat_all().toStdString();
                 t_float_50 total                 = safe_float(out[out.size() - 1].at("total").get<std::string>());
                 if (total > safe_float(m_max_value))
                 {
@@ -114,7 +116,7 @@ namespace atomic_dex
                 obj.insert("change", QString::fromStdString(wallet_perf));
                 obj.insert("ratio", QString::fromStdString(ratio));
                 obj.insert("percent", QString::fromStdString(percent));
-                obj.insert("last_total_balance_fiat_all", QString::fromStdString(utils::format_float(total)));
+                obj.insert("last_total_balance_fiat_all", m_system_manager.get_system<portfolio_page>().get_main_balance_fiat_all());
                 obj.insert("initial_total_balance_fiat_all", QString::fromStdString(utils::format_float(first_total)));
                 obj.insert("all_time_low", QString::fromStdString(m_min_value));
                 obj.insert("all_time_high", QString::fromStdString(m_max_value));
@@ -122,7 +124,7 @@ namespace atomic_dex
                 m_wallet_performance->insert("wallet_evolution", obj);
                 m_min_value = utils::format_float(safe_float(m_min_value) * 0.9);
                 m_max_value = utils::format_float(safe_float(m_max_value) * 1.1);
-                SPDLOG_INFO("metrics: {}", QString(QJsonDocument(*m_wallet_performance).toJson()).toStdString());
+                // SPDLOG_INFO("metrics: {}", QString(QJsonDocument(*m_wallet_performance).toJson()).toStdString());
                 m_fiat_charts = std::move(out);
             }
             catch (const std::exception& error)
@@ -232,7 +234,7 @@ namespace atomic_dex
                 if (not res.empty())
                 {
                     t_float_50 balance = safe_float(portfolio_model->data(res.at(0), portfolio_model::MainCurrencyBalanceRole).toString().toStdString());
-                    SPDLOG_INFO("coin: {} not empty - checking now - balance: {}", coin, utils::format_float(balance));
+                    // SPDLOG_INFO("coin: {} not empty - checking now - balance: {}", coin, utils::format_float(balance));
                     if (balance > 0)
                     {
                         t_float_50 cur_change_24h = safe_float(portfolio_model->data(res.at(0), portfolio_model::Change24H).toString().toStdString());
@@ -304,35 +306,50 @@ namespace atomic_dex
     void
     coingecko_wallet_charts_service::manual_refresh(const std::string& from)
     {
-        SPDLOG_INFO("manual refresh from: {}", from);
-        if (m_is_busy)
+        if (this->is_enabled())
         {
-            SPDLOG_WARN("Service is busy, try later");
-            return;
-        }
-        auto functor = [this]()
-        {
-            try
+            SPDLOG_INFO("manual refresh from: {}", from);
+            const auto wallet_obj       = m_wallet_performance.get();
+            const bool is_valid         = wallet_obj.contains("wallet_evolution");
+            const auto balance_fiat_all = m_system_manager.get_system<portfolio_page>().get_main_balance_fiat_all();
+            if (is_valid && from.find("set_chart_category") == std::string::npos)
             {
+                const auto previous = wallet_obj["wallet_evolution"].toObject().value("last_total_balance_fiat_all").toString();
+                if (previous == balance_fiat_all)
                 {
-                    SPDLOG_INFO("Waiting for previous call to be finished");
-                    m_executor.wait_for_all();
-                    m_taskflow.clear();
-                    m_chart_data_registry->clear();
-                    m_min_value          = "0";
-                    m_max_value          = "0";
-                    m_wallet_performance = QJsonObject();
+                    SPDLOG_INFO("Skipping refresh, balance doesn't change between last calls");
+                    return;
                 }
-                fetch_all_charts_data();
-                m_update_clock = std::chrono::high_resolution_clock::now();
             }
-            catch (const std::exception& error)
+            if (m_is_busy)
             {
-                SPDLOG_ERROR("Exception caught: {}", error.what());
+                SPDLOG_WARN("Service is busy, try later");
+                return;
             }
-        };
-        //[[maybe_unused]] auto res = std::async(functor);
-        functor();
+            auto functor = [this]()
+            {
+                try
+                {
+                    {
+                        SPDLOG_INFO("Waiting for previous call to be finished");
+                        m_executor.wait_for_all();
+                        m_taskflow.clear();
+                        m_chart_data_registry->clear();
+                        m_min_value          = "0";
+                        m_max_value          = "0";
+                        m_wallet_performance = QJsonObject();
+                    }
+                    fetch_all_charts_data();
+                    m_update_clock = std::chrono::high_resolution_clock::now();
+                }
+                catch (const std::exception& error)
+                {
+                    SPDLOG_ERROR("Exception caught: {}", error.what());
+                }
+            };
+            //[[maybe_unused]] auto res = std::async(functor);
+            functor();
+        }
     }
 
     bool
@@ -356,5 +373,21 @@ namespace atomic_dex
     coingecko_wallet_charts_service::get_max_total() const
     {
         return QString::fromStdString(m_max_value);
+    }
+
+    int
+    coingecko_wallet_charts_service::get_neareast_point(int timestamp)
+    {
+        nlohmann::json res = m_fiat_charts.get();
+        auto it = std::lower_bound(begin(res), end(res), timestamp, [](const nlohmann::json& current_json, int timestamp) {
+          int res = current_json.at("timestamp").get<std::size_t>();
+          return res < timestamp;
+        });
+        if (it != res.end())
+        {
+            auto idx = std::distance(begin(res), it);
+            return idx;
+        }
+        return 0;
     }
 } // namespace atomic_dex

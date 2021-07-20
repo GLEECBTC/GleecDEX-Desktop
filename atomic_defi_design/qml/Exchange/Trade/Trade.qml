@@ -2,14 +2,14 @@ import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Controls 2.15
 import QtQuick.Controls.Material 2.15
-
+import Qt.labs.settings 1.0
 import QtGraphicalEffects 1.0
 
 import Qaterial 1.0 as Qaterial
-import Qt.labs.settings 1.0
 
 import AtomicDEX.MarketMode 1.0
 import AtomicDEX.TradingError 1.0
+import AtomicDEX.TradingMode 1.0
 
 import "../../Components"
 import "../../Constants"
@@ -31,19 +31,28 @@ import "Orders/" as OrdersView
 
 import "./" as Here
 
+import "SimpleView" as SimpleView
+
 Item {
     id: exchange_trade
     readonly property string total_amount: API.app.trading_pg.total_amount
+    property bool orderSelected: false
     //property var form_base: sell_mode? form_base.formBase : buyBox.formBase
     Component.onCompleted: {
         API.app.trading_pg.on_gui_enter_dex()
-        onOpened()
+        if(dashboard.current_ticker!==undefined){
+            onOpened(dashboard.current_ticker)
+        }else {
+            onOpened()
+        }
+        dashboard.current_ticker = undefined
     }
 
     Component.onDestruction: {
         API.app.trading_pg.on_gui_leave_dex()
     }
-    property bool isUltraLarge: width > 1400
+    property bool isUltraLarge: true // width > 1400
+    property bool isBigScreen: width > 1400
     onIsUltraLargeChanged: {
         if (isUltraLarge) {
             API.app.trading_pg.orderbook.asks.proxy_mdl.qml_sort(
@@ -92,23 +101,9 @@ Item {
         interval: 1000
     }
 
-//    property var onOrderSuccess: function (){
-//        General.prevent_coin_disabling.restart()
-//        tabView.currentIndex = 1
-//    }
-
-    onSell_modeChanged: {
-        reset()
-    }
-
     function inCurrentPage() {
         return exchange.inCurrentPage()
                 && exchange.current_page === idx_exchange_trade
-    }
-
-    function reset() {
-        //API.app.trading_pg.multi_order_enabled = false
-        //multi_order_switch.checked = API.app.trading_pg.multi_order_enabled
     }
 
     readonly property var preffered_order: API.app.trading_pg.preffered_order
@@ -122,13 +117,12 @@ Item {
 
     // Trade
     function onOpened(ticker) {
+
         if (!General.initialized_orderbook_pair) {
             General.initialized_orderbook_pair = true
             API.app.trading_pg.set_current_orderbook(General.default_base,
                                                      General.default_rel)
         }
-
-        reset()
         setPair(true, ticker)
         app.pairChanged(base_ticker, rel_ticker)
     }
@@ -168,19 +162,22 @@ Item {
             API.app.trading_pg.place_sell_order(nota, confs)
         else
             API.app.trading_pg.place_buy_order(nota, confs)
+
+        orderPlaced()
     }
+
+    signal orderPlaced()
 
     readonly property bool buy_sell_rpc_busy: API.app.trading_pg.buy_sell_rpc_busy
     readonly property var buy_sell_last_rpc_data: API.app.trading_pg.buy_sell_last_rpc_data
 
-
-
-    // Form
-    ProView {
-        id: form
+    Loader
+    {
+        id: _viewLoader
+        anchors.fill: parent
+        source: API.app.trading_pg.current_trading_mode == TradingMode.Pro ? "ProView.qml" : "SimpleView/Main.qml"
     }
 
     TradeViewHeader {
-        y: -20
     }
 }
