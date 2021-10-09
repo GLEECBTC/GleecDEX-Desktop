@@ -1,11 +1,12 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Controls 2.15
-
 import QtGraphicalEffects 1.0
+import QtWebEngine 1.10
+
 import "../Components"
 import "../Constants"
-
+import App 1.0
 import "../Dashboard"
 import "../Portfolio"
 import "../Wallet"
@@ -19,6 +20,8 @@ import "../Settings" as SettingsPage
 
 Item {
     id: dashboard
+
+    property alias webEngineView: webEngineView
 
     readonly property int idx_dashboard_portfolio: 0
     readonly property int idx_dashboard_wallet: 1
@@ -45,15 +48,18 @@ Item {
         Qt.openUrlExternally(General.os_file_prefix + API.app.settings_pg.get_log_folder())
     }
 
-    readonly property var api_wallet_page: API.app.wallet_pg
-    readonly property var current_ticker_infos: api_wallet_page.ticker_infos
+    readonly property
+    var api_wallet_page: API.app.wallet_pg
+    readonly property
+    var current_ticker_infos: api_wallet_page.ticker_infos
     readonly property bool can_change_ticker: !api_wallet_page.tx_fetching_busy
 
     readonly property alias loader: loader
     readonly property alias current_component: loader.item
     property int current_page: idx_dashboard_portfolio
+
     onCurrent_pageChanged: {
-        app.deepPage = current_page*10
+        app.deepPage = current_page * 10
     }
 
 
@@ -63,10 +69,21 @@ Item {
         return app.current_page === idx_dashboard
     }
 
-    property var notifications_list: ([])
+    function switchPage(page)
+    {
+        if (loader.status === Loader.Ready)
+            current_page = page
+        else
+            console.warn("Tried to switch to page %1 when loader is not ready yet.".arg(page))
+    }
 
-    readonly property var portfolio_mdl: API.app.portfolio_pg.portfolio_mdl
-    property var portfolio_coins: portfolio_mdl.portfolio_proxy_mdl
+    property
+    var notifications_list: ([])
+
+    readonly property
+    var portfolio_mdl: API.app.portfolio_pg.portfolio_mdl
+    property
+    var portfolio_coins: portfolio_mdl.portfolio_proxy_mdl
 
     function resetCoinFilter() {
         portfolio_coins.setFilterFixedString("")
@@ -84,22 +101,21 @@ Item {
     }
 
     // Force restart modal: opened when the user has more coins enabled than specified in its configuration
-    ForceRestartModal
-    {
+    ForceRestartModal {
         reasonMsg: qsTr("The current number of enabled coins does not match your configuration specification. Your assets configuration will be reset.")
-        Component.onCompleted:
-        {
-            if (API.app.portfolio_pg.portfolio_mdl.length > atomic_settings2.value("MaximumNbCoinsEnabled"))
-            {
+        Component.onCompleted: {
+            if (API.app.portfolio_pg.portfolio_mdl.length > atomic_settings2.value("MaximumNbCoinsEnabled")) {
                 open()
-                onTimerEnded = () => { API.app.settings_pg.reset_coin_cfg() }
+                onTimerEnded = () => {
+                    API.app.settings_pg.reset_coin_cfg()
+                }
             }
         }
     }
 
     // Right side
     AnimatedRectangle {
-        color: theme.backgroundColorDeep
+        color: DexTheme.backgroundColorDeep
         width: parent.width - sidebar.width
         height: parent.height
         x: sidebar.width
@@ -187,24 +203,41 @@ Item {
             }
         }
 
+        WebEngineView
+        {
+            id: webEngineView
+            backgroundColor: "transparent"
+        }
+
         DefaultLoader {
             id: loader
 
             anchors.fill: parent
             transformOrigin: Item.Center
+            asynchronous: true
 
             sourceComponent: {
-                switch(current_page) {
-                case idx_dashboard_portfolio: return portfolio
-                case idx_dashboard_wallet: return wallet
-                case idx_dashboard_exchange: return exchange
-                case idx_dashboard_addressbook: return addressbook
-                case idx_dashboard_news: return news
-                case idx_dashboard_dapps: return dapps
-                case idx_dashboard_settings: return settings
-                case idx_dashboard_support: return support
-                case idx_dashboard_fiat_ramp: return fiat_ramp
-                default: return undefined
+                switch (current_page) {
+                    case idx_dashboard_portfolio:
+                        return portfolio
+                    case idx_dashboard_wallet:
+                        return wallet
+                    case idx_dashboard_exchange:
+                        return exchange
+                    case idx_dashboard_addressbook:
+                        return addressbook
+                    case idx_dashboard_news:
+                        return news
+                    case idx_dashboard_dapps:
+                        return dapps
+                    case idx_dashboard_settings:
+                        return settings
+                    case idx_dashboard_support:
+                        return support
+                    case idx_dashboard_fiat_ramp:
+                        return fiat_ramp
+                    default:
+                        return undefined
                 }
             }
         }
@@ -214,7 +247,7 @@ Item {
 
             anchors.fill: parent
 
-            DefaultBusyIndicator {
+            DexBusyIndicator {
                 anchors.centerIn: parent
                 running: !loader.visible
             }
@@ -233,10 +266,10 @@ Item {
         cached: false
         horizontalOffset: 0
         verticalOffset: 0
-        radius: theme.sidebarShadowRadius
+        radius: DexTheme.sidebarShadowRadius
         samples: 32
         spread: 0
-        color: theme.colorSidebarDropShadow
+        color: DexTheme.colorSidebarDropShadow
         smooth: true
     }
 
@@ -261,7 +294,7 @@ Item {
     }
 
     function getStatusColor(status) {
-        switch(status) {
+        switch (status) {
             case "matching":
                 return Style.colorYellow
             case "matched":
@@ -269,10 +302,43 @@ Item {
             case "refunding":
                 return Style.colorOrange
             case "successful":
-                return Style.colorGreen
+                return DexTheme.greenColor
             case "failed":
             default:
-                return Style.colorRed
+                return DexTheme.redColor
+        }
+    }
+
+    function isSwapDone(status) {
+        switch (status) {
+            case "matching":
+            case "matched":
+            case "ongoing":
+                return false
+            case "successful":
+            case "refunding":
+            case "failed":
+            default:
+                return true
+        }
+    }
+
+    function getStatusStep(status) {
+        switch (status) {
+            case "matching":
+                return "0/3"
+            case "matched":
+                return "1/3"
+            case "ongoing":
+                return "2/3"
+            case "successful":
+                return Style.successCharacter
+            case "refunding":
+                return Style.warningCharacter
+            case "failed":
+                return Style.failureCharacter
+            default:
+                return "?"
         }
     }
 
@@ -295,45 +361,12 @@ Item {
         }
     }
 
-    function isSwapDone(status) {
-        switch(status) {
-            case "matching":
-            case "matched":
-            case "ongoing":
-                return false
-            case "successful":
-            case "refunding":
-            case "failed":
-            default:
-                return true
-        }
-    }
-
-    function getStatusStep(status) {
-        switch(status) {
-            case "matching":
-                return "0/3"
-            case "matched":
-                return "1/3"
-            case "ongoing":
-                return "2/3"
-            case "successful":
-                return Style.successCharacter
-            case "refunding":
-                return Style.warningCharacter
-            case "failed":
-                return Style.failureCharacter
-            default:
-                return "?"
-        }
-    }
-
-    function getStatusTextWithPrefix(status, short_text=false) {
+    function getStatusTextWithPrefix(status, short_text = false) {
         return getStatusStep(status) + " " + getStatusText(status, short_text)
     }
 
     function getEventText(event_name) {
-        switch(event_name) {
+        switch (event_name) {
             case "Started":
                 return qsTr("Started")
             case "Negotiated":

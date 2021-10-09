@@ -25,6 +25,7 @@ namespace atomic_dex
         void refresh_ticker_infos();
 
         void on_tx_fetch_finished(const tx_fetch_finished&);
+        void on_ticker_balance_updated(const ticker_balance_updated&);
 
         // Getters/Setters
         [[nodiscard]] transactions_model* get_transactions_mdl() const;
@@ -71,8 +72,9 @@ namespace atomic_dex
 
         // QML API
         Q_INVOKABLE void validate_address(QString address);
-        Q_INVOKABLE void
-        convert_address(QString from, QVariant to_address_format); //<https://developers.atomicdex.io/basic-docs/atomicdex/atomicdex-api.html#convertaddress
+        Q_INVOKABLE void validate_address(QString address, QString ticker);
+        Q_INVOKABLE void convert_address(QString from, QVariant to_address_format);                 // https://developers.atomicdex.io/basic-docs/atomicdex/atomicdex-api.html#convertaddress
+        Q_INVOKABLE void convert_address(QString from, QString ticker, QVariant to_address_format); // https://developers.atomicdex.io/basic-docs/atomicdex/atomicdex-api.html#convertaddress
         Q_INVOKABLE void claim_rewards();
         Q_INVOKABLE void claim_faucet();
         Q_INVOKABLE void broadcast(const QString& tx_hex, bool is_claiming, bool is_max, const QString& amount);
@@ -81,6 +83,8 @@ namespace atomic_dex
                         const QString& amount); // Broadcast requires OS local user credentials verification. This is called by the Q_INVOKABLE broadcast() method after
                                                 // entering credentials.
         Q_INVOKABLE void send(const QString& address, const QString& amount, bool max, bool with_fees, QVariantMap fees_data);
+        Q_INVOKABLE QString switch_address_mode(bool checked);
+        Q_INVOKABLE void    post_switch_address_mode(bool is_segwit);
 
         // QML API Properties
         Q_PROPERTY(transactions_model* transactions_mdl READ get_transactions_mdl NOTIFY transactionsMdlChanged)
@@ -139,6 +143,7 @@ namespace atomic_dex
         std::atomic_bool                               m_tx_fetching_busy{false};
         std::atomic_bool                               m_validate_address_busy{false};
         std::atomic_bool                               m_convert_address_busy{false};
+
         t_qt_synchronized_json                         m_claiming_rpc_result;
         t_qt_synchronized_json                         m_claiming_rpc_faucet_result;
         t_qt_synchronized_json                         m_send_rpc_result;

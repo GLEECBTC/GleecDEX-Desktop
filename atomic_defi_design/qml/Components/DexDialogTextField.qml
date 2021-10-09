@@ -12,9 +12,10 @@ Item {
     property alias value: input_field.text
     property alias field: input_field
     property alias background: _background
-    property string defaultBorderColor: theme.rectangleBorderColor
+    property string defaultBorderColor: DexTheme.rectangleBorderColor
     property string leftText: ""
     property string rightText: ""
+    property string placeholderText: ""
     property int leftWidth: -1
     readonly property int max_length: 40
     property bool error: false
@@ -48,14 +49,14 @@ Item {
     function reset() {
         input_field.text = ""
     }
-    
+
     Rectangle {
         id: _background
         width: parent.width
         height: parent.height
         radius: 25
         color: 'transparent'
-        border.color: theme.accentColor
+        border.color: DexTheme.accentColor
         border.width: input_field.focus ? 1 : 0
         Behavior on x {
             NumberAnimation {
@@ -79,7 +80,7 @@ Item {
                 leftPadding: 5
                 horizontalAlignment: DexLabel.AlignHCenter
                 text: leftText
-                color: theme.foregroundColor
+                color: DexTheme.foregroundColor
                 opacity: .4
                 font.pixelSize: 14
                 font.weight: Font.Medium
@@ -93,7 +94,7 @@ Item {
                 anchors.topMargin: 1
                 anchors.bottomMargin: 1
                 radius: _background.radius
-                color: theme.surfaceColor
+                color: DexTheme.surfaceColor
                 DexTextField {
                     id: input_field
                     onTextChanged: {
@@ -110,6 +111,15 @@ Item {
                     font.pixelSize: 13
                     anchors.fill: parent
                 }
+                DexLabel {
+                    anchors.verticalCenter: parent.verticalCenter
+                    leftPadding: input_field.leftPadding
+                    font: input_field.font
+                    color: DexTheme.foregroundColor
+                    opacity: .5
+                    text: control.placeholderText
+                    visible: input_field.text === ""
+                }
             }
         }
         Item {
@@ -121,7 +131,7 @@ Item {
                 anchors.centerIn: parent
                 horizontalAlignment: DexLabel.AlignHCenter
                 text: rightText
-                color: theme.foregroundColor
+                color: DexTheme.foregroundColor
                 opacity: .4
                 font.pixelSize: 14
                 font.weight: Font.Medium

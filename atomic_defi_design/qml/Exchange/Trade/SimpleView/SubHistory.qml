@@ -9,9 +9,11 @@ import Qaterial 1.0 as Qaterial
 
 //! Project Imports
 import "../../../Components"
-import "../../../Constants"   //> Style
+import "../../../Constants" as Constants  //> Style
 import "../Orders" as Orders
 import "Main.js" as Main
+
+import App 1.0
 
 Item {
     id: _subHistoryRoot
@@ -20,16 +22,23 @@ Item {
     readonly property date default_max_date: new Date(new Date().setDate(new Date().getDate() + 30))
     property var list_model_proxy: API.app.orders_mdl.orders_proxy_mdl
     property bool displayFilter: false
-    property bool _filterApplied:  false
 
     function update() {
-        list_model_proxy.is_history = true
-        applyTickerFilter()
-        applyDateFilter()
-        applyAllFiltering()
+        reset()
+        if(combo_base.currentTicker !== "All" | combo_rel.currentTicker !== "All") {
+            buttonDelay.start()
+        }
     }
 
-    function applyTickerFilter() {  
+    function reset() {
+        list_model_proxy.is_history = false
+        applyFilter()
+        applyAllFiltering()
+        list_model_proxy.is_history = true
+
+    }
+
+    function applyTickerFilter() {
         applyTickerFilter2(combo_base.currentTicker, combo_rel.currentTicker)
     }
 
@@ -45,18 +54,28 @@ Item {
 
         list_model_proxy.filter_maximum_date = max_date.date
     }
+
     function applyFilter() {
         applyTickerFilter()
         applyDateFilter()
-
     }
+
     function applyAllFiltering() {
         list_model_proxy.apply_all_filtering()
     }
 
     anchors.fill: parent
 
-    ColumnLayout // History Content
+    Component.onDestruction: reset()
+
+    Timer {
+        id: buttonDelay
+        interval: 200
+        running: true
+        onTriggered: applyButton.clicked()
+    }
+
+    ColumnLayout // History
     {
         height: parent.height
         width: parent.width
@@ -70,55 +89,54 @@ Item {
             DefaultText // Title
             {
                 text: qsTr("History")
-                font.pixelSize: Style.textSize1
+                font: DexTypo.head6
+                opacity: .8
             }
 
             DexLabel // Description
             {
                 width: _subHistoryRoot.width - 40
                 anchors.topMargin: 12
-                font.pixelSize: Style.textSizeSmall4
-                //text: _filterApplied? "" : qsTr("Finished orders")
+                font.pixelSize: Constants.Style.textSizeSmall4
                 DexLabel {
                     opacity: .4
-                    text: qsTr("Filter") + ": %1 / %2 <br> %3: %4 - %5"
+                    text: qsTr("Filter") + " %1 / %2 <br> %3 %4 - %5"
                                                     .arg(combo_base.currentTicker)
                                                     .arg(combo_rel.currentTicker)
                                                     .arg(qsTr("Date"))
-                                                    .arg(min_date.date.toLocaleDateString(Locale.ShortFormat, "yyyy-MM-dd"))
-                                                    .arg(max_date.date.toLocaleDateString(Locale.ShortFormat, "yyyy-MM-dd"))   
+                                                    .arg(min_date.date.toLocaleDateString(Locale.ShortFormat, "yyyy.MM.dd"))
+                                                    .arg(max_date.date.toLocaleDateString(Locale.ShortFormat, "yyyy.MM.dd"))
                 }
-                Qaterial.AppBarButton // Reset Form Button
+
+                DexAppButton
                 {
-                    width: 50
-                    height: 50
                     anchors.right: parent.right
                     anchors.rightMargin: -5
                     anchors.bottom: parent.bottom
-                    anchors.bottomMargin: -8
-
-                    icon.source: _subHistoryRoot.displayFilter ? Qaterial.Icons.close : Qaterial.Icons.filter
-
-                    hoverEnabled: true
-
+                    iconSource: _subHistoryRoot.displayFilter ? Qaterial.Icons.close : Qaterial.Icons.cogBox
+                    iconSize: 14
+                    backgroundColor: DexTheme.iconButtonColor
+                    foregroundColor: DexTheme.iconButtonForegroundColor
+                    opacity: containsMouse ? .7 : 1
+                    width: 35
+                    height: 25
                     ToolTip.delay: 500
                     ToolTip.timeout: 5000
-                    ToolTip.visible: hovered
-                    ToolTip.text: _subHistoryRoot.displayFilter ? qsTr("Close filtering options.") : qsTr("Open filering options.")
-
+                    ToolTip.visible: containsMouse
+                    ToolTip.text: _subHistoryRoot.displayFilter ? qsTr("Close filtering options.") : qsTr("Open filtering options.")
                     onClicked: _subHistoryRoot.displayFilter = !_subHistoryRoot.displayFilter
                 }
             }
         }
 
-        HorizontalLine { height: 2; Layout.fillWidth: true }
+        Item { height: 2; Layout.fillWidth: true }
 
         Item {
             id: main_order
             Layout.fillHeight: true
             Layout.fillWidth: true
             property bool is_history: true
-            
+
             Component.onCompleted: {
                 _subHistoryRoot.list_model_proxy.is_history = is_history
             }
@@ -126,128 +144,128 @@ Item {
                 id: order_list_view
             }
             DexRectangle {
-                anchors.fill: parent 
-                color: theme.dexBoxBackgroundColor
+                anchors.fill: parent
+                color: DexTheme.portfolioPieGradient ? 'transparent' : DexTheme.dexBoxBackgroundColor
                 opacity: .8
                 visible: _subHistoryRoot.displayFilter
                 border.width: 0
             }
             DexRectangle {
                 width: parent.width
-                height: _subHistoryRoot.displayFilter? 330 : 60
+                height: _subHistoryRoot.displayFilter ? parent.height : 60
                 visible: height>100
                 sizeAnimation: true
-                color: theme.dexBoxBackgroundColor
+                color: DexTheme.portfolioPieGradient ? DexTheme.contentColorTopBold : DexTheme.dexBoxBackgroundColor
                 radius: 0
                 y: -20
                 Column {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    leftPadding: 15 
+                    leftPadding: 15
                     rightPadding: 15
-                    visible: parent.height>250
+                    visible: parent.height > 250
                     DexLabel {
                         text: qsTr("Filter settings")
                         topPadding: 10
                         leftPadding: 10
-                        font: _font.body1
+                        font: DexTypo.head6
+                        opacity: .8
                     }
                     RowLayout {
                         width: main_order.width - 30
                         height: 35
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 0
-                        DexLabel {
-                            text: qsTr("Base Ticker")
-                            leftPadding: 10
-                            font: _font.body2
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignVCenter
-                            opacity: .6
-                        }
                         DefaultSweetComboBox {
                             id: combo_base
-                            model: API.app.portfolio_pg.global_cfg_mdl.all_proxy
+                            Layout.fillWidth: true
+                            model: Constants.API.app.portfolio_pg.global_cfg_mdl.all_proxy
                             onCurrentTickerChanged: applyTickerFilter()
                             height: 60
                             valueRole: "ticker"
                             textRole: 'ticker'
                         }
-                        
+
                     }
                     RowLayout {
                         width: main_order.width - 30
                         height: 35
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 5
-                        DexLabel {
-                            text: qsTr("Rel Ticker")
-                            leftPadding: 10
-                            font: _font.body2
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignVCenter
-                            opacity: .6
-                        }
                         DefaultSweetComboBox {
                             id: combo_rel
-                            model: API.app.portfolio_pg.global_cfg_mdl.all_proxy//combo_base.model
+                            Layout.fillWidth: true
+                            model: Constants.API.app.portfolio_pg.global_cfg_mdl.all_proxy//combo_base.model
                             onCurrentTickerChanged: applyTickerFilter()
                             height: 60
                             valueRole: "ticker"
                             textRole: 'ticker'
 
                         }
-                        
+
                     }
                     spacing: 10
-                    Qaterial.TextFieldDatePicker {
-                        id: min_date
-                        title: qsTr("From")
-                        from: default_min_date
-                        to: default_max_date
-                        date: default_min_date
-                        onAccepted: applyDateFilter()
-                        width: parent.width - 50
-                        height: 60
-                        opacity: .8
+                    RowLayout {
+                        width: main_order.width - 40
+                        height: 50
                         anchors.horizontalCenter: parent.horizontalCenter
-                    }
+                        spacing: 5
+                        Qaterial.TextFieldDatePicker {
+                            id: min_date
+                            title: qsTr("From")
+                            from: default_min_date
+                            to: default_max_date
+                            date: default_min_date
+                            onAccepted: applyDateFilter()
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            opacity: .8
+                            color: DexTheme.foregroundColor
+                            backgroundColor: DexTheme.portfolioPieGradient ? '#FFFFFF' : 'transparent'
+                        }
 
-                    Qaterial.TextFieldDatePicker {
-                        id: max_date
-                        enabled: min_date.enabled
-                        title: qsTr("To")
-                        from: min_date.date
-                        to: default_max_date
-                        date: default_max_date
-                        onAccepted: applyDateFilter()
-                        width: parent.width - 50
-                        rightInset: 0
-                        height: 60
-                        opacity: .8
-                        anchors.horizontalCenter: parent.horizontalCenter
+                        Qaterial.TextFieldDatePicker {
+                            id: max_date
+                            enabled: min_date.enabled
+                            title: qsTr("To")
+                            from: min_date.date
+                            to: default_max_date
+                            date: default_max_date
+                            onAccepted: applyDateFilter()
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            rightInset: 0
+                            opacity: .8
+                            color: DexTheme.foregroundColor
+                            backgroundColor: DexTheme.portfolioPieGradient ? '#FFFFFF' : 'transparent'
+                        }
+
                     }
                 }
+
                 Item {
                     anchors.bottom: parent.bottom
-                    width: parent.width
+                    width: parent.width - 40
+                    anchors.horizontalCenter: parent.horizontalCenter
                     height: 60
-                    Row {
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.right: parent.right
-                        anchors.rightMargin: 20
-                        spacing: 10
+                    RowLayout {
+                        anchors.fill: parent
+                        spacing: 15
                         DexAppButton {
-                            height: 35
-                            anchors.verticalCenter: parent.verticalCenter
+                            Layout.fillWidth: true
+                            radius: 10
+                            Layout.alignment: Qt.AlignVCenter
                             text: qsTr("Cancel")
                             onClicked: {
                                 _subHistoryRoot.displayFilter = false
                             }
                         }
-                        DexAppButton {
+                        DexAppOutlineButton {
+                            id: applyButton
                             height: 35
-                            anchors.verticalCenter: parent.verticalCenter
-                            backgroundColor: Qaterial.Colors.lightGreen700
+                            Layout.fillWidth: true
+                            radius: 10
+                            Layout.alignment: Qt.AlignVCenter
+                            opacity: containsMouse ? .7 : 1
                             text: qsTr("Apply filter")
                             onClicked: {
                                 _subHistoryRoot.displayFilter = false
@@ -258,9 +276,9 @@ Item {
                     }
                 }
             }
-            
+
         }
-        HorizontalLine
+        Item
         {
             height: 2
             Layout.fillWidth: true
@@ -272,7 +290,7 @@ Item {
                 width: parent.width
                 height: 50
                 y: -20
-                DefaultComboBox {
+                DexComboBox {
                     readonly property int item_count: API.app.orders_mdl.limit_nb_elements
                     readonly property var options: [5, 10, 25, 50, 100, 200]
                     anchors.verticalCenter: parent.verticalCenter
@@ -295,7 +313,7 @@ Item {
                     }
                 }
             }
-            
+
         }
         FileDialog {
             id: export_csv_dialog
@@ -308,7 +326,7 @@ Item {
 
             onAccepted: {
                 const path = currentFile.toString()
-                
+
                 // Export
                 console.log("Exporting to CSV: " + path)
                 API.app.exporter_service.export_swaps_history_to_csv(path.replace(General.os_file_prefix, ""))
@@ -321,6 +339,13 @@ Item {
                 console.log("CSV export cancelled")
             }
         }
-        
+
+    }
+
+    DexLabel
+    {
+        visible: !_subHistoryRoot.displayFilter && order_list_view.count === 0
+        anchors.centerIn: parent
+        text: qsTr("No results found")
     }
 }

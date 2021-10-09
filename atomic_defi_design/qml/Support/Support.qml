@@ -6,18 +6,19 @@ import QtGraphicalEffects 1.0
 import "../Components"
 import "../Constants"
 
+import App 1.0
+
 Item {
     id: root
 
-    DefaultFlickable {
+    DexFlickable {
         id: layout_background
 
-        anchors.fill: parent
-        anchors.leftMargin: 20
-        anchors.rightMargin: anchors.leftMargin
-        anchors.bottomMargin: anchors.leftMargin
-
-        contentWidth: width
+        width: parent.width - 20 
+        height: parent.height - 20
+        y: 10
+        x: 20
+        contentWidth: width - 20
         contentHeight: content_layout.height
 
         ColumnLayout {

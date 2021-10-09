@@ -18,9 +18,9 @@
 #include <unordered_set>
 
 ///! Qt
+#include <QException>
 #include <QFile>
 #include <QProcess>
-#include <QException>
 
 //! Project Headers
 #include "atomicdex/api/mm2/mm2.constants.hpp"
@@ -30,6 +30,7 @@
 #include "atomicdex/api/mm2/rpc.tx.history.hpp"
 #include "atomicdex/config/mm2.cfg.hpp"
 #include "atomicdex/managers/qt.wallet.manager.hpp"
+#include "atomicdex/pages/qt.portfolio.page.hpp"
 #include "atomicdex/services/internet/internet.checker.service.hpp"
 #include "atomicdex/services/mm2/mm2.service.hpp"
 #include "atomicdex/utilities/kill.hpp" ///< no delete
@@ -69,7 +70,7 @@ namespace
                 //! New cfg to ifs
                 fs::path actual_version_filepath = cfg_path / (std::string(atomic_dex::get_raw_version()) + "-coins."s + wallet_name + ".json"s);
                 LOG_PATH("opening file: {}", actual_version_filepath);
-                QFile    actual_version_ifs;
+                QFile actual_version_ifs;
                 actual_version_ifs.setFileName(atomic_dex::std_path_to_qstring(actual_version_filepath));
                 actual_version_ifs.open(QIODevice::Text | QIODevice::ReadOnly);
                 nlohmann::json actual_config_data = nlohmann::json::parse(QString(actual_version_ifs.readAll()).toStdString());
@@ -125,9 +126,9 @@ namespace
     void
     update_coin_status(
         const std::string& wallet_name, const std::vector<std::string>& tickers, bool status, atomic_dex::t_coins_registry& registry,
-        std::shared_mutex& registry_mtx)
+        std::shared_mutex& registry_mtx, std::string field_name = "active")
     {
-        SPDLOG_INFO("Update coins status to: {}", status);
+        SPDLOG_INFO("Update coins status to: {} - field_name: {} - tickers: {}", status, field_name, fmt::join(tickers, ", "));
         fs::path    cfg_path               = atomic_dex::utils::get_atomic_dex_config_folder();
         std::string filename               = std::string(atomic_dex::get_raw_version()) + "-coins." + wallet_name + ".json";
         std::string custom_tokens_filename = "custom-tokens." + wallet_name + ".json";
@@ -156,13 +157,21 @@ namespace
             {
                 if (registry[ticker].is_custom_coin)
                 {
-                    custom_cfg_data.at(ticker)["active"] = status;
+                    custom_cfg_data.at(ticker)[field_name] = status;
                 }
                 else
                 {
-                    config_json_data.at(ticker)["active"] = status;
+                    config_json_data.at(ticker)[field_name] = status;
                 }
-                registry[ticker].active = status;
+                if (field_name == "active")
+                {
+                    SPDLOG_INFO("ticker: {} status active: {}", ticker, status);
+                    registry[ticker].active = status;
+                }
+                else if (field_name == "is_segwit_on")
+                {
+                    registry[ticker].is_segwit_on = status;
+                }
             }
         }
 
@@ -464,17 +473,18 @@ namespace atomic_dex
     mm2_service::batch_balance_and_tx(bool is_a_reset, std::vector<std::string> tickers, bool is_during_enabling, bool only_tx)
     {
         // SPDLOG_INFO("batch_balance_and_tx");
+        (void)tickers;
+        (void)is_during_enabling;
         auto&& [batch_array, tickers_idx, tokens_to_fetch] = prepare_batch_balance_and_tx(only_tx);
         return m_mm2_client.async_rpc_batch_standalone(batch_array)
             .then(
-                [this, tickers_idx = tickers_idx, tokens_to_fetch = tokens_to_fetch, is_a_reset, tickers, is_during_enabling](web::http::http_response resp)
+                [this, tokens_to_fetch = tokens_to_fetch, is_a_reset, tickers](web::http::http_response resp)
                 {
                     try
                     {
                         auto answers = ::mm2::api::basic_batch_answer(resp);
                         if (not answers.contains("error"))
                         {
-                            std::size_t idx = 0;
                             for (auto&& answer: answers)
                             {
                                 if (answer.contains("balance"))
@@ -496,20 +506,15 @@ namespace atomic_dex
                                         //! Emit error for UI Change
                                     }
                                 }
-                                ++idx;
                             }
 
                             for (auto&& coin: tokens_to_fetch) { process_tx_tokenscan(coin, is_a_reset); }
-                            this->dispatcher_.trigger<ticker_balance_updated>(tickers_idx);
-                            if (is_during_enabling)
-                            {
-                                dispatcher_.trigger<coin_enabled>(tickers);
-                            }
                         }
                     }
                     catch (const std::exception& error)
                     {
                         SPDLOG_ERROR("exception in batch_balance_and_tx: {}", error.what());
+                        // this->dispatcher_.trigger<tx_fetch_finished>(true);
                     }
                 })
             .then([this, batch = batch_array](pplx::task<void> previous_task)
@@ -523,8 +528,9 @@ namespace atomic_dex
         nlohmann::json           batch_array   = nlohmann::json::array();
         std::vector<std::string> tickers_idx;
         std::vector<std::string> tokens_to_fetch;
-        const auto&              ticker = get_current_ticker();
-        if (auto coin_type = get_coin_info(ticker).coin_type; coin_type != CoinType::ERC20 && coin_type != CoinType::BEP20)
+        const auto&              ticker    = get_current_ticker();
+        auto                     coin_info = get_coin_info(ticker);
+        if (!coin_info.is_erc_family)
         {
             t_tx_history_request request{.coin = ticker, .limit = 5000};
             nlohmann::json       j = ::mm2::api::template_request("my_tx_history");
@@ -590,7 +596,12 @@ namespace atomic_dex
         {
             coin_config        coin_info = get_coin_info(g_second_primary_dex_coin);
             t_electrum_request request{.coin_name = coin_info.ticker, .servers = coin_info.electrum_urls.value(), .with_tx_history = true};
-            nlohmann::json     j = ::mm2::api::template_request("electrum");
+            if (coin_info.segwit && coin_info.is_segwit_on)
+            {
+                request.address_format                   = nlohmann::json::object();
+                request.address_format.value()["format"] = "segwit";
+            }
+            nlohmann::json j = ::mm2::api::template_request("electrum");
             ::mm2::api::to_json(j, request);
             btc_kmd_batch.push_back(j);
             coin_info = get_coin_info(g_primary_dex_coin);
@@ -616,7 +627,7 @@ namespace atomic_dex
                 continue;
             }
 
-            if (coin_info.coin_type != CoinType::ERC20 && coin_info.coin_type != CoinType::BEP20)
+            if (!coin_info.is_erc_family)
             {
                 t_electrum_request request{
                     .coin_name       = coin_info.ticker,
@@ -624,6 +635,11 @@ namespace atomic_dex
                     .coin_type       = coin_info.coin_type,
                     .is_testnet      = coin_info.is_testnet.value_or(false),
                     .with_tx_history = true};
+                if (coin_info.segwit && coin_info.is_segwit_on)
+                {
+                    request.address_format                   = nlohmann::json::object();
+                    request.address_format.value()["format"] = "segwit";
+                }
                 nlohmann::json j = ::mm2::api::template_request("electrum");
                 ::mm2::api::to_json(j, request);
                 batch_array.push_back(j);
@@ -638,7 +654,7 @@ namespace atomic_dex
                     .with_tx_history = false};
                 nlohmann::json j = ::mm2::api::template_request("enable");
                 ::mm2::api::to_json(j, request);
-                // SPDLOG_INFO("enable request: {}", j.dump(4));
+                //SPDLOG_INFO("enable request: {}", j.dump(4));
                 batch_array.push_back(j);
             }
             //! If the coin is a custom coin and not present, then we have a config mismatch, we re-add it to the mm2 coins cfg but this need a app restart.
@@ -674,37 +690,57 @@ namespace atomic_dex
                                 for (auto&& answer: answers)
                                 {
                                     auto [res, error] = this->process_batch_enable_answer(answer);
-                                    if (not res && idx < tickers.size())
+                                    if (!res)
                                     {
                                         SPDLOG_DEBUG(
                                             "bad answer for: [{}] -> removing it from enabling, idx: {}, tickers size: {}, answers size: {}", tickers[idx], idx,
                                             tickers.size(), answers.size());
                                         this->dispatcher_.trigger<enabling_coin_failed>(tickers[idx], error);
                                         to_remove.emplace(tickers[idx]);
+                                        if (error.find("already initialized") == std::string::npos)
+                                        {
+                                            SPDLOG_WARN("Should set to false the active field in cfg for: {} - reason: {}", tickers[idx], error);
+                                        }
                                     }
                                     idx += 1;
+                                    if (res)
+                                    {
+                                        this->process_balance_answer(answer);
+                                    }
                                 }
 
                                 for (auto&& t: to_remove) { tickers.erase(std::remove(tickers.begin(), tickers.end(), t), tickers.end()); }
 
-                                if (not tickers.empty())
+                                if (!tickers.empty())
                                 {
                                     if (tickers == g_default_coins)
                                     {
+                                        SPDLOG_INFO("Trigger default_coins_enabled");
                                         this->dispatcher_.trigger<default_coins_enabled>();
+                                        batch_balance_and_tx(false, tickers, true);
                                     }
-                                    batch_balance_and_tx(false, tickers, true);
+                                    dispatcher_.trigger<coin_fully_initialized>(tickers);
+                                    if (tickers.size() == 1)
+                                    {
+                                        fetch_single_balance(get_coin_info(tickers[0]));
+                                    }
+                                    // batch_balance_and_tx(false, tickers, true);
                                 }
                             }
                         }
                         catch (const std::exception& error)
                         {
                             SPDLOG_ERROR("exception caught in batch_enable_coins: {}", error.what());
+                            // update_coin_status(this->m_current_wallet_name, tickers, false, m_coins_informations, m_coin_cfg_mutex);
                             //! Emit event here
                         }
                     })
-                .then([this, batch_array](pplx::task<void> previous_task)
-                      { this->handle_exception_pplx_task(previous_task, "batch_enable_coins", batch_array); });
+                .then(
+                    [this, tickers, batch_array](pplx::task<void> previous_task)
+                    {
+                        this->handle_exception_pplx_task(previous_task, "batch_enable_coins", batch_array);
+                        // update_coin_status(this->m_current_wallet_name, tickers, false, m_coins_informations, m_coin_cfg_mutex);
+                    });
         };
 
         SPDLOG_DEBUG("starting async enabling coin");
@@ -714,9 +750,15 @@ namespace atomic_dex
             functor(btc_kmd_batch, g_default_coins);
         }
 
-        if (not batch_array.empty())
+        if (!batch_array.empty())
         {
-            functor(batch_array, copy_tickers);
+            for (std::size_t idx = 0; idx < batch_array.size(); ++idx)
+            {
+                nlohmann::json single_batch = nlohmann::json::array();
+                single_batch.push_back(batch_array.at(idx));
+                functor(single_batch, {copy_tickers[idx]});
+            }
+            // functor(batch_array, copy_tickers);
         }
     }
 
@@ -760,6 +802,7 @@ namespace atomic_dex
     nlohmann::json
     mm2_service::prepare_batch_orderbook(bool is_a_reset)
     {
+        // SPDLOG_INFO("is_a_reset: {}", is_a_reset);
         auto&& [base, rel] = m_synchronized_ticker_pair.get();
         if (rel.empty())
             return nlohmann::json::array();
@@ -780,6 +823,7 @@ namespace atomic_dex
             generate_req("min_trading_vol", t_min_volume_request{.coin = base});
             generate_req("min_trading_vol", t_min_volume_request{.coin = rel});
         }
+        // SPDLOG_INFO("batch max: {}", batch.dump(4));
         return batch;
     }
 
@@ -790,11 +834,12 @@ namespace atomic_dex
         if (batch.empty())
             return;
         // SPDLOG_DEBUG("batch request: {}", batch.dump(4));
-        auto&& [base, rel] = m_synchronized_ticker_pair.get();
+        // auto&& [base, rel] = m_synchronized_ticker_pair.get();
 
-        auto answer_functor = [this, is_a_reset, base = base, rel = rel](web::http::http_response resp)
+        auto answer_functor = [this, is_a_reset](web::http::http_response resp)
         {
-            auto answer = ::mm2::api::basic_batch_answer(resp);
+            auto&& [base, rel] = m_synchronized_ticker_pair.get();
+            auto answer        = ::mm2::api::basic_batch_answer(resp);
             if (answer.is_array())
             {
                 auto orderbook_answer = ::mm2::api::rpc_process_answer_batch<t_orderbook_answer>(answer[0], "orderbook");
@@ -804,18 +849,24 @@ namespace atomic_dex
                     auto base_max_taker_vol_answer = ::mm2::api::rpc_process_answer_batch<::mm2::api::max_taker_vol_answer>(answer[1], "max_taker_vol");
                     if (base_max_taker_vol_answer.rpc_result_code == 200)
                     {
-                        this->m_synchronized_max_taker_vol->first         = base_max_taker_vol_answer.result.value();
-                        //t_float_50 base_res                               = t_float_50(this->m_synchronized_max_taker_vol->first.decimal) * m_balance_factor;
-                        //this->m_synchronized_max_taker_vol->first.decimal = base_res.str(8);
-                        //SPDLOG_INFO("max_taker_vol: {}", answer[1].dump(4));
+                        if (base == base_max_taker_vol_answer.result->coin)
+                        {
+                            this->m_synchronized_max_taker_vol->first = base_max_taker_vol_answer.result.value();
+                        }
+                        // t_float_50 base_res                               = t_float_50(this->m_synchronized_max_taker_vol->first.decimal) * m_balance_factor;
+                        // this->m_synchronized_max_taker_vol->first.decimal = base_res.str(8);
+                        // SPDLOG_INFO("max_taker_vol: {}", answer[1].dump(4));
                     }
 
                     auto rel_max_taker_vol_answer = ::mm2::api::rpc_process_answer_batch<::mm2::api::max_taker_vol_answer>(answer[2], "max_taker_vol");
                     if (rel_max_taker_vol_answer.rpc_result_code == 200)
                     {
-                        this->m_synchronized_max_taker_vol->second         = rel_max_taker_vol_answer.result.value();
-                        //t_float_50 rel_res                                 = t_float_50(this->m_synchronized_max_taker_vol->second.decimal) * m_balance_factor;
-                        //this->m_synchronized_max_taker_vol->second.decimal = rel_res.str(8);
+                        if (rel == rel_max_taker_vol_answer.result->coin)
+                        {
+                            this->m_synchronized_max_taker_vol->second = rel_max_taker_vol_answer.result.value();
+                        }
+                        // t_float_50 rel_res                                 = t_float_50(this->m_synchronized_max_taker_vol->second.decimal) *
+                        // m_balance_factor; this->m_synchronized_max_taker_vol->second.decimal = rel_res.str(8);
                     }
 
                     auto base_min_taker_vol_answer = ::mm2::api::rpc_process_answer_batch<t_min_volume_answer>(answer[3], "min_trading_vol");
@@ -859,11 +910,55 @@ namespace atomic_dex
     }
 
     void
+    mm2_service::fetch_single_balance(const coin_config& cfg_infos)
+    {
+        nlohmann::json batch_array = nlohmann::json::array();
+        if (is_pin_cfg_enabled())
+        {
+            std::shared_lock lock(m_balance_mutex); ///< shared_lock
+            if (m_balance_informations.find(cfg_infos.ticker) != m_balance_informations.cend())
+            {
+                return;
+            }
+        }
+        t_balance_request balance_request{.coin = cfg_infos.ticker};
+        nlohmann::json    j = ::mm2::api::template_request("my_balance");
+        ::mm2::api::to_json(j, balance_request);
+        batch_array.push_back(j);
+        auto answer_functor = [this](web::http::http_response resp)
+        {
+            try
+            {
+                auto answers = ::mm2::api::basic_batch_answer(resp);
+                if (!answers.contains("error") && !answers[0].contains("error"))
+                {
+                    this->process_balance_answer(answers[0]);
+                }
+            }
+            catch (const std::exception& error)
+            {
+                SPDLOG_ERROR("exception in fetch_single_balance: {}", error.what());
+            }
+        };
+        auto error_functor = [this, batch = batch_array](pplx::task<void> previous_task)
+        { this->handle_exception_pplx_task(previous_task, "fetch_single_balance", batch); };
+        m_mm2_client.async_rpc_batch_standalone(batch_array).then(answer_functor).then(error_functor);
+    }
+
+    void
     mm2_service::fetch_infos_thread(bool is_a_refresh, bool only_tx)
     {
-        // SPDLOG_INFO("fetch_infos_thread");
-
-        batch_balance_and_tx(is_a_refresh, {}, false, only_tx);
+        SPDLOG_INFO("fetch_infos_thread");
+        if (only_tx)
+        {
+            batch_balance_and_tx(is_a_refresh, {}, false, only_tx);
+        }
+        else
+        {
+            const auto& enabled_coins = get_enabled_coins();
+            for (auto&& coin: enabled_coins) { fetch_single_balance(coin); }
+            batch_balance_and_tx(is_a_refresh, {}, false, true);
+        }
     }
 
     void
@@ -891,7 +986,6 @@ namespace atomic_dex
         ofs.close();
 
         QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        ;
         env.insert("MM_CONF_PATH", std_path_to_qstring(mm2_cfg_path));
         env.insert("MM_LOG", std_path_to_qstring(utils::get_mm2_atomic_dex_current_log_file()));
         env.insert("MM_COINS_PATH", std_path_to_qstring((utils::get_current_configs_path() / "coins.json")));
@@ -952,9 +1046,8 @@ namespace atomic_dex
         const auto& ticker = get_current_ticker();
         // SPDLOG_DEBUG("asking history of ticker: {}", ticker);
         const auto underlying_tx_history_map = m_tx_informations.synchronize();
-        const auto coin_type                 = get_coin_info(ticker).coin_type;
-        const auto it                        = !(coin_type == CoinType::ERC20 || coin_type == CoinType::BEP20) ? underlying_tx_history_map->find("result")
-                                                                                                               : underlying_tx_history_map->find(ticker);
+        const auto coin_info                 = get_coin_info(ticker);
+        const auto it                        = !(coin_info.is_erc_family) ? underlying_tx_history_map->find("result") : underlying_tx_history_map->find(ticker);
         if (it == underlying_tx_history_map->cend())
         {
             ec = dextop_error::tx_history_of_a_non_enabled_coin;
@@ -1136,6 +1229,18 @@ namespace atomic_dex
                     const std::string contract_address = get_raw_mm2_ticker_cfg(ticker).at("protocol").at("protocol_data").at("contract_address");
                     out                                = "/api/v2/bep_tx_history/" + contract_address + "/" + address;
                 }
+                break;
+            case CoinTypeGadget::Matic:
+                if (ticker == "MATIC" || ticker == "MATICTEST")
+                {
+                    out = "/api/v1/plg_tx_history/" + address;
+                }
+                else
+                {
+                    const std::string contract_address = get_raw_mm2_ticker_cfg(ticker).at("protocol").at("protocol_data").at("contract_address");
+                    out                                = "/api/v2/plg_tx_history/" + contract_address + "/" + address;
+                }
+                break;
             default:
                 break;
             }
@@ -1146,6 +1251,7 @@ namespace atomic_dex
             return out;
         };
         std::string url = retrieve_api_functor(ticker, address(ticker, ec));
+        SPDLOG_INFO("url scan: {}", url);
         ::mm2::api::async_process_rpc_get(::mm2::api::g_etherscan_proxy_http_client, "tx_history", url)
             .then(
                 [this, ticker](web::http::http_response resp)
@@ -1214,7 +1320,12 @@ namespace atomic_dex
                         this->dispatcher_.trigger<tx_fetch_finished>();
                     }
                 })
-            .then([this](pplx::task<void> previous_task) { this->handle_exception_pplx_task(previous_task, "process_tx_tokenscan", {}); });
+            .then(
+                [this](pplx::task<void> previous_task)
+                {
+                    this->dispatcher_.trigger<tx_fetch_finished>();
+                    this->handle_exception_pplx_task(previous_task, "process_tx_tokenscan", {});
+                });
     }
 
     void
@@ -1225,8 +1336,9 @@ namespace atomic_dex
         // SPDLOG_INFO("refreshing orderbook pair: [{} / {}]", evt.base, evt.rel);
         this->m_synchronized_ticker_pair = std::make_pair(evt.base, evt.rel);
 
-        if (this->m_mm2_running && this->m_orderbook_thread_active)
+        if (this->m_mm2_running)
         {
+            SPDLOG_INFO("process_orderbook(true)");
             process_orderbook(true);
         }
     }
@@ -1433,10 +1545,12 @@ namespace atomic_dex
 
         t_float_50 result = t_float_50(answer_r.balance) * m_balance_factor;
         answer_r.balance  = result.str(8, std::ios_base::fixed);
+        // auto copy_coin = answer_r.coin;
         {
             std::unique_lock lock(m_balance_mutex);
             m_balance_informations[answer_r.coin] = std::move(answer_r);
         }
+        // m_system_manager.get_system<portfolio_page>().get_portfolio()->update_balance_values({copy_coin});
     }
 
     mm2_client&
@@ -1650,13 +1764,17 @@ namespace atomic_dex
         }
         catch (const std::exception& e)
         {
+            if (std::string(e.what()).find("mutex lock failed") != std::string::npos)
+            {
+                return;
+            }
             for (auto&& cur: request) cur["userpass"] = "";
             SPDLOG_ERROR("pplx task error: {} from: {}, request: {}", e.what(), from, request.dump(4));
-            this->dispatcher_.trigger<batch_failed>(from, e.what());
+            // this->dispatcher_.trigger<batch_failed>(from, e.what());
 
-#if defined(linux) || defined(__APPLE__)
-            SPDLOG_ERROR("stacktrace: {}", boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
-#endif
+            //#if defined(linux) || defined(__APPLE__)
+            // SPDLOG_ERROR("stacktrace: {}", boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+            //#endif
             if (std::string(e.what()).find("Failed to read HTTP status line") != std::string::npos ||
                 std::string(e.what()).find("WinHttpReceiveResponse: 12002: The operation timed out") != std::string::npos)
             {
@@ -1668,5 +1786,11 @@ namespace atomic_dex
                 }
             }
         }
+    }
+
+    void
+    mm2_service::change_segwit_status(std::string ticker, bool status)
+    {
+        update_coin_status(this->m_current_wallet_name, {ticker}, status, m_coins_informations, m_coin_cfg_mutex, "is_segwit_on");
     }
 } // namespace atomic_dex

@@ -135,6 +135,7 @@ namespace atomic_dex
         void process_balance_answer(const nlohmann::json& answer);
         void process_tx_answer(const nlohmann::json& answer_json);
         void process_tx_tokenscan(const std::string& ticker, bool is_a_refresh);
+        void fetch_single_balance(const coin_config& cfg_infos);
 
         //!
         std::pair<bool, std::string>                        process_batch_enable_answer(const nlohmann::json& answer);
@@ -259,6 +260,8 @@ namespace atomic_dex
 
         //! Pagination
         void set_orders_and_swaps_pagination_infos(std::size_t current_page = 1, std::size_t limit = 50, t_filtering_infos infos = {});
+
+        void change_segwit_status(std::string ticker, bool status);
     };
 } // namespace atomic_dex
 

@@ -9,6 +9,7 @@ import QtQuick.Window 2.15
 
 import "../Components"
 import "../Constants"
+import App 1.0
 import "../Settings"
 
 SetupPage {
@@ -40,7 +41,7 @@ SetupPage {
     property
     var wallets: ([])
 
-    image_path: (bottomDrawer.y === 0 && bottomDrawer.visible) ? "" : "file:///" + atomic_logo_path + "/" + theme.bigSidebarLogo
+    image_path: (bottomDrawer.y === 0 && bottomDrawer.visible) ? "" : "file:///" + atomic_logo_path + "/" + DexTheme.bigSidebarLogo
     image_margin: 30
     Drawer {
         id: bottomDrawer
@@ -66,12 +67,14 @@ SetupPage {
                 Image {
                     /*width: 200 
                     height: 130*/
-                    source: "file:///" + atomic_logo_path + "/" + theme.bigSidebarLogo
+                    source: "file:///" + atomic_logo_path + "/" + DexTheme.bigSidebarLogo
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
                 DexLabel {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: "%1 wallet".arg(selected_wallet_name)
+                    color: DexTheme.foregroundColorLightColor4
+                    font: DexTypo.body1
                     topPadding: 10
                 }
                 Connections {
@@ -99,11 +102,19 @@ SetupPage {
                         }
                     }
                 }
+
+                DexKeyChecker {
+                    id: _passwordChecker
+                    visible: false
+                    field: _inputPassword.field
+                }
+
                 DexButton {
                     radius: width
                     width: 150
                     text: qsTr("connect")
-                    color: theme.accentColor
+                    opacity: enabled ? 1 : 0.6
+                    enabled: _passwordChecker.isValid()
                     anchors.horizontalCenter: parent.horizontalCenter
                     onClicked: {
                         _inputPassword.field.accepted()
@@ -137,7 +148,7 @@ SetupPage {
         RowLayout {
             Layout.fillWidth: true
             DexLabel {
-                font: theme.textType.head6
+                font: DexTypo.head6
                 text_value: qsTr("Welcome")
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
@@ -160,14 +171,14 @@ SetupPage {
             text: qsTr("New Wallet")
             Layout.preferredHeight: 50
             radius: 8
-            backgroundColor: theme.accentColor
+            //backgroundColor: DexTheme.accentColor
             onClicked: onClickedNewUser()
         }
 
         DexAppButton {
-            text: qsTr("Recover Wallet")
+            text: qsTr("Import wallet")
             horizontalAlignment: Qt.AlignLeft
-            backgroundColor: theme.accentColor
+            //backgroundColor: DexTheme.accentColor
             leftPadding: 20
             radius: 8
             Layout.fillWidth: true
@@ -192,13 +203,13 @@ SetupPage {
                 Rectangle {
                     height: 2
                     width: parent.width
-                    color: theme.accentColor
+                    color: DexTheme.accentColor
                     Rectangle {
                         anchors.centerIn: parent
                         width: 9
                         height: 9
                         radius: 6
-                        color: theme.accentColor
+                        color: DexTheme.accentColor
                     }
                 }
             }
@@ -209,7 +220,7 @@ SetupPage {
                 readonly property int row_height: 40
                 Layout.minimumHeight: row_height
                 Layout.preferredHeight: row_height * Math.min(wallets.length, 3)
-
+                color: "transparent"
                 DefaultListView {
                     id: list
                     implicitHeight: bg.Layout.preferredHeight
@@ -217,13 +228,13 @@ SetupPage {
                     model: wallets
 
                     delegate: ClipRRect {
-                        radius: 0
+                        radius: 5
                         width: bg.width
                         height: bg.row_height
-                        GradientRectangle {
+                        DexRectangle {
 
-                            start_color: Style.applyOpacity(Style.colorWalletsHighlightGradient, mouse_area.containsMouse ? "80" : "00")
-                            end_color: Style.applyOpacity(Style.colorWalletsHighlightGradient)
+                            color: "transparent"
+                            border.width: 0
 
                             anchors.fill: parent
 
@@ -236,7 +247,7 @@ SetupPage {
                                         duration: 250
                                     }
                                 }
-                                color: theme.accentColor
+                                color: DexTheme.buttonColorHovered
                                 visible: mouse_area.containsMouse
                             }
                             DefaultMouseArea {
@@ -251,6 +262,7 @@ SetupPage {
 
                             Qaterial.ColorIcon {
                                 anchors.verticalCenter: parent.verticalCenter
+                                color: DexTheme.foregroundColor
                                 source: Qaterial.Icons.account
                                 iconSize: 16
                                 x: 20
@@ -263,16 +275,6 @@ SetupPage {
                                 anchors.verticalCenter: parent.verticalCenter
                                 font.pixelSize: Style.textSizeSmall2
                             }
-
-                            HorizontalLine {
-                                visible: index !== wallets.length - 1
-                                width: parent.width - 4
-
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                anchors.bottom: parent.bottom
-                                anchors.bottomMargin: -height / 2
-                                light: true
-                            }
                         }
                         Item {
                             anchors.right: parent.right
@@ -284,7 +286,7 @@ SetupPage {
                                 iconSize: 18
                                 anchors.centerIn: parent
                                 opacity: .8
-                                color: _deleteArea.containsMouse ? theme.redColor : theme.foregroundColor
+                                color: _deleteArea.containsMouse ? DexTheme.redColor : DexTheme.foregroundColor
                             }
                             DexMouseArea {
                                 id: _deleteArea
@@ -294,11 +296,11 @@ SetupPage {
                                     let wallet_name = model.modelData
                                     let dialog = app.getText({
                                         "title": qsTr("Delete") + " %1 ".arg(wallet_name) + ("wallet?"),
-                                        text: qsTr("Enter password to confirm deletion of") + " %1 ".arg(wallet_name) + qsTr("wallet") ,
+                                        text: qsTr("Enter password to confirm deletion of") + " %1 ".arg(wallet_name) + qsTr("wallet"),
                                         standardButtons: Dialog.Yes | Dialog.Cancel,
                                         warning: true,
                                         width: 300,
-                                        iconColor: theme.redColor,
+                                        iconColor: DexTheme.redColor,
                                         isPassword: true,
                                         placeholderText: qsTr("Type password"),
                                         yesButtonText: qsTr("Delete"),
@@ -317,7 +319,7 @@ SetupPage {
                                                     title: qsTr("Wallet status"),
                                                     text: "%1 ".arg(wallet_name) + qsTr("wallet password entered is incorrect"),
                                                     iconSource: Qaterial.Icons.alert,
-                                                    iconColor: theme.redColor,
+                                                    iconColor: DexTheme.redColor,
                                                     warning: true,
                                                     standardButtons: Dialog.Ok
                                                 })
@@ -357,7 +359,7 @@ SetupPage {
     }
     GaussianBlur {
         anchors.fill: _setup
-        visible: false 
+        visible: false
         source: _setup
         radius: 21
         deviation: 2

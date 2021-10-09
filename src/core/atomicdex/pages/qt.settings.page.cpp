@@ -365,7 +365,7 @@ namespace atomic_dex
                     out["adex_cfg"][ticker]["coingecko_id"]      = coingecko_id.toStdString();
                     out["adex_cfg"][ticker]["explorer_url"]      = nlohmann::json::array({"https://explorer.qtum.org/"});
                     out["adex_cfg"][ticker]["type"]              = "QRC-20";
-                    out["adex_cfg"][ticker]["active"]            = false;
+                    out["adex_cfg"][ticker]["active"]            = true;
                     out["adex_cfg"][ticker]["currently_enabled"] = false;
                     out["adex_cfg"][ticker]["is_custom_coin"]    = true;
                     if (not out.at("mm2_cfg").empty())
@@ -414,7 +414,7 @@ namespace atomic_dex
                     "ETH"s, "ERC20"s);
             case CoinTypeGadget::BEP20:
                 return std::make_tuple(
-                    &::mm2::api::g_etherscan_proxy_http_client, "/api/v1/token_infos/bep20/"s + contract_address.toStdString(), "BEP20"s, "ETH"s, "BEP-20"s,
+                    &::mm2::api::g_etherscan_proxy_http_client, "/api/v1/token_infos/bep20/"s + contract_address.toStdString(), "BEP20"s, "BNB"s, "BEP-20"s,
                     "BNB"s, "ERC20"s);
             default:
                 return std::make_tuple(&::mm2::api::g_etherscan_proxy_http_client, ""s, ""s, ""s, ""s, ""s, ""s);
@@ -469,7 +469,7 @@ namespace atomic_dex
                     out["adex_cfg"][ticker]["nodes"]             = coin_info.urls.value_or(std::vector<std::string>());
                     out["adex_cfg"][ticker]["explorer_url"]      = coin_info.explorer_url;
                     out["adex_cfg"][ticker]["type"]              = adex_platform;
-                    out["adex_cfg"][ticker]["active"]            = false;
+                    out["adex_cfg"][ticker]["active"]            = true;
                     out["adex_cfg"][ticker]["currently_enabled"] = false;
                     out["adex_cfg"][ticker]["is_custom_coin"]    = true;
                     out["adex_cfg"][ticker]["mm2_backup"]        = out["mm2_cfg"];

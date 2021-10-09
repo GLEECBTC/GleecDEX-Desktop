@@ -2,18 +2,18 @@ import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Controls 2.15
 import QtQuick.Controls.Material 2.15
-
 import QtGraphicalEffects 1.0
+import Qt.labs.settings 1.0
 
 import Qaterial 1.0 as Qaterial
-import Qt.labs.settings 1.0
 
 import AtomicDEX.MarketMode 1.0
 import AtomicDEX.TradingError 1.0
 
 import "../../Components"
-import "../../Constants"
 import "../../Wallet"
+
+import App 1.0
 
 // Trade Form / Component import
 import "TradeBox/"
@@ -29,7 +29,7 @@ import "BestOrder/" as BestOrder
 // Orders (orders, history)
 import "Orders/" as OrdersView
 
-import "./" as Here
+import "../../Screens"
 
 ColumnLayout {
     id: form
@@ -170,6 +170,17 @@ ColumnLayout {
                             color: 'transparent'
                             anchors.fill: parent
                         }
+
+                        Component.onCompleted:
+                        {
+                            dashboard.webEngineView.parent = chart_view;
+                            dashboard.webEngineView.anchors.fill = chart_view;
+                        }
+                        Component.onDestruction:
+                        {
+                            dashboard.webEngineView.visible = false;
+                            dashboard.webEngineView.stop();
+                        }
                     }
                 }
                 DexTradeBox {
@@ -256,10 +267,10 @@ ColumnLayout {
                             width: parent.width
                             currentIndex: tabView.currentIndex
                             anchors.horizontalCenter: parent.horizontalCenter
-                            Material.foreground: theme.foregroundColor
+                            Material.foreground: DexTheme.foregroundColor
                             background: Rectangle {
                                 radius: 0
-                                color: theme.dexBoxBackgroundColor
+                                color: DexTheme.portfolioPieGradient ? "transparent" : DexTheme.dexBoxBackgroundColor
                             }
 
                             y: 5
@@ -268,21 +279,24 @@ ColumnLayout {
                                 width: 150
                                 text: qsTr("Exchange Rates")
                                 font.pixelSize: 14
-                                textColor: CheckBox ? Qaterial.Style.buttonAccentColor : theme.foregroundColor
+                                textColor: checked ? Qaterial.Style.buttonAccentColor : DexTheme.foregroundColor
+                                textSecondaryColor: DexTheme.foregroundColorLightColor0
                                 opacity: checked ? 1 : .6
                             }
                             Qaterial.LatoTabButton {
                                 width: 120
                                 text: qsTr("Orders")
                                 font.pixelSize: 14
-                                textColor: CheckBox ? Qaterial.Style.buttonAccentColor : theme.foregroundColor
+                                textColor: checked ? Qaterial.Style.buttonAccentColor : DexTheme.foregroundColor
+                                textSecondaryColor: DexTheme.foregroundColorLightColor0
                                 opacity: checked ? 1 : .6
                             }
                             Qaterial.LatoTabButton {
                                 width: 120
                                 text: qsTr("History")
                                 font.pixelSize: 14
-                                textColor: CheckBox ? Qaterial.Style.buttonAccentColor : theme.foregroundColor
+                                textColor: checked ? Qaterial.Style.buttonAccentColor : DexTheme.foregroundColor
+                                textSecondaryColor: DexTheme.foregroundColorLightColor0
                                 opacity: checked ? 1 : .6
                             }
                         }
@@ -297,6 +311,7 @@ ColumnLayout {
                                 currentIndex: tabView.currentIndex
                                 anchors.fill: parent
                                 onCurrentIndexChanged: {
+                                    swipeView.currentItem.update()
                                     if(currentIndex===2) {
                                         history_component.list_model_proxy.is_history = true
                                     } else {
@@ -329,8 +344,8 @@ ColumnLayout {
         Item {
             id: _book_and_best
             property bool showing: (_best_order_box.visible || _orderbook_box.visible)
-            SplitView.minimumWidth: showing? 300 : 0
-            SplitView.maximumWidth: showing? 310 : 0
+            SplitView.minimumWidth: showing? 320 : 0
+            SplitView.maximumWidth: showing? 330 : 0
             SplitView.preferredWidth: showing? 280 : 0
             clip: true
             DexBoxManager {
@@ -410,37 +425,49 @@ ColumnLayout {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 30
                     Layout.maximumHeight: 35
+                    Gradient {
+                        id: activeGradient
+                        orientation: Qt.Horizontal
+                        GradientStop {
+                            position: 0.1255
+                            color: DexTheme.buttonGradientEnabled1
+                        }
+                         GradientStop {
+                            position: 0.933
+                            color: DexTheme.buttonGradientEnabled2
+                        }
+                    }
+
+                    Gradient {
+                        id: activeRedGradient
+                        orientation: Qt.Horizontal
+                        GradientStop {
+                            position: 0.1255
+                            color: DexTheme.redColor
+                        }
+                         GradientStop {
+                            position: 0.933
+                            color: Qt.darker(DexTheme.redColor, 0.8)
+                        }
+                    }
+
                     Row {
-                        width: parent.width - 80
+                        width: parent.width - 60
+                        spacing: 10
                         anchors.centerIn: parent
                         Rectangle {
                             width: (parent.width / 2)
-                            height: 35
-                            radius: 8
+                            height: 40
+                            radius: 15
                             color: !sell_mode ? Qt.darker(
-                                                    theme.greenColor) : Qt.lighter(theme.dexBoxBackgroundColor)
-                            border.color: !sell_mode ? theme.greenColor : color
-                            Rectangle {
-                                anchors.right: parent.right
-                                color: parent.color
-                                height: parent.height
-                                width: parent.radius
-                                border.color: parent.border.color
-                                border.width: parent.border.width
-
-                                Rectangle {
-                                    anchors.left: parent.left
-                                    color: parent.color
-                                    height: parent.height - (parent.border.width * 2)
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 2
-                                }
-                            }
+                                                    DexTheme.greenColor) : Qt.lighter(DexTheme.dexBoxBackgroundColor)
+                            gradient: DexTheme.portfolioPieGradient && !sell_mode ? activeGradient : undefined
+                            border.color: !sell_mode ? "transparent" : DexTheme.greenColor
                             DefaultText {
                                 anchors.centerIn: parent
                                 opacity: !sell_mode ? 1 : .5
                                 text: qsTr("Buy")+" "+atomic_qt_utilities.retrieve_main_ticker(left_ticker)
-                                color: !sell_mode? Qaterial.Colors.white : theme.foregroundColor
+                                color: !sell_mode? Qaterial.Colors.white : DexTheme.foregroundColor
                             }
                             DefaultMouseArea {
                                 anchors.fill: parent
@@ -448,34 +475,21 @@ ColumnLayout {
                                 onClicked: setMarketMode(MarketMode.Buy)
                             }
                         }
+
                         Rectangle {
                             width: (parent.width / 2)
-                            height: 35
-                            radius: 8
+                            height: 40
+                            radius: 15
                             color: sell_mode ? Qt.darker(
-                                                   theme.redColor) : Qt.lighter(theme.dexBoxBackgroundColor)
-                            border.color: sell_mode ? theme.redColor : color
-                            Rectangle {
-                                anchors.left: parent.left
-                                color: parent.color
-                                height: parent.height
-                                width: parent.radius
-                                border.color: parent.border.color
-                                border.width: parent.border.width
-                                Rectangle {
-                                    anchors.right: parent.right
-                                    color: parent.color
-                                    height: parent.height - (parent.border.width * 2)
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 2
-                                }
-                            }
+                                                   DexTheme.redColor) : Qt.lighter(DexTheme.dexBoxBackgroundColor)
+                            border.color: sell_mode ? "transparent" : DexTheme.redColor
+                            gradient: DexTheme.portfolioPieGradient && sell_mode ? activeRedGradient : undefined
                             DefaultText {
                                 anchors.centerIn: parent
 
                                 opacity: sell_mode ? 1 : .5
                                 text: qsTr("Sell")+" "+atomic_qt_utilities.retrieve_main_ticker(left_ticker)
-                                color: sell_mode? Qaterial.Colors.white : theme.foregroundColor
+                                color: sell_mode? Qaterial.Colors.white : DexTheme.foregroundColor
 
                             }
                             DefaultMouseArea {
@@ -503,17 +517,17 @@ ColumnLayout {
                                 height: 40
                                 color: 'transparent'
                                 radius: 8
-                                border.color: theme.redColor
+                                border.color: DexTheme.redColor
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 y: 5
                                 DefaultText {
                                     anchors.verticalCenter: parent.verticalCenter
                                     leftPadding: 15
-                                    color: theme.redColor
+                                    color: DexTheme.redColor
                                     text: qsTr("Order Selected")
                                 }
                                 Qaterial.FlatButton {
-                                    foregroundColor: theme.redColor
+                                    foregroundColor: DexTheme.redColor
                                     icon.source: Qaterial.Icons.close
                                     anchors.right: parent.right
                                     anchors.verticalCenter: parent.verticalCenter
@@ -557,11 +571,12 @@ ColumnLayout {
                                 spacing: 15
 
                                 // Trade button
-                                DefaultButton {
+                                DexGradientAppButton {
                                     width: parent.width - 20
                                     anchors.horizontalCenter: parent.horizontalCenter
 
-                                    button_type: sell_mode ? "danger" : "primary"
+                                    gradient: sell_mode ? activeRedGradient : activeGradient
+                                    opacity: enabled ? containsMouse ? .7: 1 : .5
 
                                     text: qsTr("Start Swap")
                                     font.weight: Font.Medium
@@ -586,7 +601,7 @@ ColumnLayout {
                                         width: parent.width
                                         horizontalAlignment: DefaultText.AlignHCenter
                                         font.pixelSize: Style.textSizeSmall4
-                                        color: theme.redColor
+                                        color: DexTheme.redColor
 
                                         text_value: General.getTradingError(
                                                         last_trading_error,
@@ -613,13 +628,13 @@ ColumnLayout {
         spacing: 8
         padding: 4
         arrowXDecalage: 75
-        backgroundColor: theme.dexBoxBackgroundColor
+        backgroundColor: DexTheme.dexBoxBackgroundColor
         Settings {
             id: proview_settings
             property bool chart_visibility: true
             property bool option_visibility: true
             property bool orderbook_visibility: true
-            property bool best_order_visibility: true
+            property bool best_order_visibility: false
             property bool form_visibility: true
         }
 
@@ -633,7 +648,7 @@ ColumnLayout {
                 spacing: 8
                 DexLabel {
                     text: "Display Settings"
-                    font: _font.body2
+                    font: DexTypo.body2
                 }
                 HorizontalLine { width: parent.width-20;anchors.horizontalCenter: parent.horizontalCenter;opacity: .4 }
                 DexCheckEye {

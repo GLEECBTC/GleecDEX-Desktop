@@ -4,25 +4,31 @@ import QtQuick.Layouts 1.15
 
 //! Project Imports
 import "../Constants"
+import App 1.0
 
 // The content of a modal. Must be a child of a `BasicModal` component.
 ColumnLayout
 {
     Layout.fillWidth: true
-
     property alias         title: _header.title
     default property alias content: _innerLayout.data
     property alias         footer: _footer.data
+    spacing: 10
 
-    ModalHeader { id: _header }
+    ModalHeader { 
+        id: _header
+        Layout.leftMargin: 30
+    }
 
-    DefaultFlickable
+    DexFlickable
     {
         id: _flickable
 
        readonly property int padding: 25
 
         flickableDirection: Flickable.VerticalFlick
+
+        rightMargin: -1
 
         Layout.preferredWidth: contentWidth
         Layout.preferredHeight: contentHeight
@@ -43,7 +49,9 @@ ColumnLayout
     RowLayout // Footer
     {
         id: _footer
-        anchors.topMargin: Style.rowSpacing
+        Layout.topMargin: Style.rowSpacing
+        Layout.rightMargin: 40
+        Layout.leftMargin: 40
         spacing: Style.buttonSpacing
     }
 }
