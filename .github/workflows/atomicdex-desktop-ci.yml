@@ -32,7 +32,7 @@ jobs:
 
         include:
           - name: ubuntu-qt-5-15-2
-            os: ubuntu-16.04
+            os: ubuntu-18.04
             qt: '5.15.2'
             type: 'release'
 
@@ -70,10 +70,10 @@ jobs:
           host: 'linux'
           target: 'desktop'
           dir: '${{ github.workspace }}'
-          #mirror: 'http://mirrors.ocf.berkeley.edu/qt/'
-          mirror: https://qt-mirror.dannhauer.de/
-          #mirror: https://www.funet.fi/pub/mirrors/download.qt-project.org/
-          #mirror: https://ftp.fau.de/qtproject/
+          #mirror: 'http://mirrors.ocf.berkeley.edu/qt'
+          #mirror: https://qt-mirror.dannhauer.de
+          #mirror: https://www.funet.fi/pub/mirrors/download.qt-project.org
+          mirror: https://ftp.fau.de/qtproject
           modules: 'qtcharts qtwidgets debug_info qtwebengine qtwebview'
           aqtversion: '==0.8'
           py7zrversion: '==0.6'
@@ -85,17 +85,17 @@ jobs:
           version: ${{ matrix.qt }}
           host: 'mac'
           target: 'desktop'
-          #mirror: 'http://mirrors.ocf.berkeley.edu/qt/'
-          mirror: https://qt-mirror.dannhauer.de/
-          #mirror: https://www.funet.fi/pub/mirrors/download.qt-project.org/
-          #mirror: https://ftp.fau.de/qtproject/
+          #mirror: 'http://mirrors.ocf.berkeley.edu/qt'
+          #mirror: https://qt-mirror.dannhauer.de
+          #mirror: https://www.funet.fi/pub/mirrors/download.qt-project.org
+          mirror: https://ftp.fau.de/qtproject
           dir: '${{ github.workspace }}'
           modules: 'qtcharts qtwidgets debug_info qtwebview qtwebengine'
 
       - name: Install QT IFW (MacOS)
         if: runner.os == 'macOS'
         run: |
-          python3  -m aqt tool mac tools_ifw 4.1.0-202104091030 qt.tools.ifw.41 -b https://qt-mirror.dannhauer.de/ --outputdir ${{ github.workspace }}/Qt
+          python3  -m aqt tool mac tools_ifw 4.1.1-202105261132 qt.tools.ifw.41 --outputdir ${{ github.workspace }}/Qt
           echo "${{ github.workspace }}/Qt/Tools/QtInstallerFramework/4.0/bin" >> $GITHUB_PATH
 
       - name: Install QT (Windows)
@@ -106,10 +106,10 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
-          #mirror: 'http://mirrors.ocf.berkeley.edu/qt/'
-          mirror: https://qt-mirror.dannhauer.de/
-          #mirror: https://www.funet.fi/pub/mirrors/download.qt-project.org/
-          #mirror: https://ftp.fau.de/qtproject/
+          #mirror: 'http://mirrors.ocf.berkeley.edu/qt'
+          #mirror: https://qt-mirror.dannhauer.de
+          #mirror: https://www.funet.fi/pub/mirrors/download.qt-project.org
+          mirror: https://ftp.fau.de/qtproject
           dir: 'C:\'
           modules: 'qtcharts qtwidgets debug_info qtwebview qtwebengine'
 
@@ -117,7 +117,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           python -m pip install --upgrade pip
-          python -m aqt tool windows tools_ifw 4.1.0-202104091029 qt.tools.ifw.41 -b https://qt-mirror.dannhauer.de/ --outputdir C:/Qt
+          python -m aqt tool windows tools_ifw 4.1.1-202105261131 qt.tools.ifw.41 --outputdir C:/Qt
           echo "C:/Qt/Tools/QtInstallerFramework/4.0/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           echo $env:GITHUB_PATH
           echo $env:PATH
@@ -126,11 +126,13 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           export DEBIAN_FRONTEND=noninteractive
+          export SHELL=/bin/bash
           echo "CHOOSENIM_CHOOSE_VERSION=1.4.0" >> $GITHUB_ENV
           curl https://nim-lang.org/choosenim/init.sh > choosenim.sh
           chmod +x choosenim.sh
           ./choosenim.sh -y
           export PATH=/home/runner/.nimble/bin:$PATH
+          chmod +x /home/runner/.choosenim/toolchains/nim-1.4.8/bin/*
 
       - name: Install deps (Linux)
         if: runner.os == 'Linux'
@@ -142,10 +144,10 @@ jobs:
       - name: Upload env variable for vpkg (Linux)
         if: runner.os == 'Linux'
         run: |
-          echo "CXXFLAGS=-stdlib=libc++" >> $GITHUB_ENV
-          echo "LDFLAGS=-stdlib=libc++" >> $GITHUB_ENV
-          echo "CXX=clang++-11" >> $GITHUB_ENV
-          echo "CC=clang-11" >> $GITHUB_ENV
+          #echo "CXXFLAGS=-stdlib=libc++" >> $GITHUB_ENV
+          #echo "LDFLAGS=-stdlib=libc++" >> $GITHUB_ENV
+          echo "CXX=clang++-12" >> $GITHUB_ENV
+          echo "CC=clang-12" >> $GITHUB_ENV
 
       - name: vcpkg deps (All)
         uses: KomodoPlatform/run-vcpkg@v7
@@ -172,10 +174,10 @@ jobs:
           export QT_ROOT=${{ github.workspace }}/Qt/${{ matrix.qt }}
           export PATH=${{ github.workspace }}/Qt/${{ matrix.qt }}/gcc_64/bin:$PATH
           export PATH=$HOME/.nimble/bin:$PATH
-          export CXXFLAGS=-stdlib=libc++
-          export LDFLAGS=-stdlib=libc++
-          export CXX=clang++-11
-          export CC=clang-11
+          #export CXXFLAGS=-stdlib=libc++
+          #export LDFLAGS=-stdlib=libc++
+          export CXX=clang++-12
+          export CC=clang-12
           cd ci_tools_atomic_dex
           nimble build -y
 
@@ -300,6 +302,7 @@ jobs:
         with:
           name: ${{ env.artifact_name_zstd }}
           path: ./bundled/linux/${{ env.target_name_zstd }}
+          retention-days: 7
 
       - name: Upload bundle artifact (Linux ZIP)
         if: runner.os == 'Linux'
@@ -307,6 +310,7 @@ jobs:
         with:
           name: ${{ env.artifact_name_zip }}
           path: ./bundled/linux/${{ env.target_name_zip }}
+          retention-days: 7
 
       - name: Upload bundle artifact (Linux AppImage)
         if: runner.os == 'Linux'
@@ -314,6 +318,7 @@ jobs:
         with:
           name: ${{ env.artifact_name_appimage }}
           path: ./bundled/linux/${{ env.target_name_appimage }}
+          retention-days: 7
 
       - name: Upload env variable for artifacts (macOS)
         if: runner.os == 'macOS'
@@ -328,6 +333,7 @@ jobs:
         with:
           name: ${{ env.artifact_name_dmg }}
           path: ./bundled/osx/${{ env.DEX_PROJECT_NAME }}.dmg
+          retention-days: 7
 
       - name: Upload artifacts (MacOS installer)
         if: runner.os == 'macOS'
@@ -335,6 +341,7 @@ jobs:
         with:
           name: ${{ env.artifact_name_installer }}
           path: ./bundled/osx/${{ env.DEX_PROJECT_NAME }}_installer.7z
+          retention-days: 7
 
       - name: Upload env variable for artifacts (Windows)
         if: runner.os == 'Windows'
@@ -349,6 +356,7 @@ jobs:
         with:
           name: ${{ env.artifact_name_zip }}
           path: ./bundled/windows/bin.zip
+          retention-days: 7
 
       - name: Upload artifacts (Windows installer)
         if: runner.os == 'Windows'
@@ -356,5 +364,6 @@ jobs:
         with:
           name: ${{ env.artifact_name_installer }}
           path: ./bundled/windows/${{ env.DEX_PROJECT_NAME }}_installer.exe
+          retention-days: 7
       
       

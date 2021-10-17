@@ -43,14 +43,20 @@ namespace atomic_dex
     void
     coingecko_provider::on_mm2_started([[maybe_unused]] const mm2_started& evt)
     {
+        SPDLOG_INFO("on_mm2_started");
         update_ticker_and_provider();
     }
 
     void
     coingecko_provider::on_coin_enabled(const coin_enabled& evt)
     {
+        SPDLOG_INFO("coin_enabled: {}", fmt::join(evt.tickers, ", "));
         dispatcher_.trigger<coin_fully_initialized>(evt.tickers);
-        this->update_ticker_and_provider();
+        if (evt.tickers.size() > 1)
+        {
+            SPDLOG_INFO("on_coin_enabled size() > 1");
+            this->update_ticker_and_provider();
+        }
     }
 
     void
@@ -69,9 +75,16 @@ namespace atomic_dex
     coingecko_provider::update_ticker_and_provider()
     {
         SPDLOG_INFO("update_ticker_and_provider");
-        const auto coins       = this->m_system_manager.get_system<portfolio_page>().get_global_cfg()->get_model_data();
-        auto&& [ids, registry] = coingecko::api::from_enabled_coins(coins);
-        internal_update(ids, registry);
+        if (m_system_manager.has_system<mm2_service>() && m_system_manager.get_system<mm2_service>().is_mm2_running())
+        {
+            const auto coins       = this->m_system_manager.get_system<portfolio_page>().get_global_cfg()->get_model_data();
+            auto&& [ids, registry] = coingecko::api::from_enabled_coins(coins);
+            internal_update(ids, registry);
+        }
+        else
+        {
+            SPDLOG_WARN("mm2 not running - skipping update_ticker_and_provider");
+        }
     }
 
     std::string
@@ -93,6 +106,12 @@ namespace atomic_dex
     {
         return get_info_answer(ticker).current_price;
     }
+
+    std::string
+    coingecko_provider::get_total_volume(const std::string& ticker) const
+    {
+        return get_info_answer(ticker).total_volume;
+    }
 } // namespace atomic_dex
 
 //! Private member functions
@@ -102,10 +121,26 @@ namespace atomic_dex
     coingecko_provider::internal_update(
         const std::vector<std::string>& ids, const std::unordered_map<std::string, std::string>& registry, bool should_move, std::vector<std::string> tickers)
     {
+        static std::atomic_uint16_t nb_try = 0;
+        nb_try += 1;
         if (!ids.empty())
         {
             SPDLOG_INFO("Processing internal_update");
 
+            auto error_functor = [this, ids, registry, should_move, tickers](pplx::task<void> previous_task)
+            {
+              try
+              {
+                  previous_task.wait();
+              }
+              catch (const std::exception& e)
+              {
+                  SPDLOG_ERROR("pplx task error from coingecko::api::async_market_infos: {} - nb_try {}", e.what(), nb_try.load());
+                  using namespace std::chrono_literals;
+                  std::this_thread::sleep_for(1s);
+                  this->internal_update(ids, registry, should_move, tickers);
+              };
+            };
             t_coingecko_market_infos_request request{.ids = std::move(ids)};
             const auto                       answer_functor = [this, registry, should_move, tickers](web::http::http_response resp) {
                 std::string body = TO_STD_STR(resp.extract_string(true).get());
@@ -115,6 +150,11 @@ namespace atomic_dex
                     t_coingecko_market_infos_answer answer;
                     coingecko::api::from_json(j, answer, registry);
                     std::size_t nb_coins = 0;
+                    /*if (answer.raw_result.empty())
+                    {
+                        SPDLOG_ERROR("Coingecko answer not available - skipping");
+                        return;
+                    }*/
                     {
                         std::unique_lock lock(m_market_mutex);
                         if (should_move) ///< Override
@@ -137,19 +177,21 @@ namespace atomic_dex
                     {
                         dispatcher_.trigger<fiat_rate_updated>("");
                     }
-                    SPDLOG_INFO("Coingecko rates successfully updated");
+                    SPDLOG_INFO("Coingecko rates successfully updated after nb_try: {}", nb_try.load());
+                    nb_try = 0;
                 }
                 else
                 {
                     SPDLOG_ERROR("Error during the rpc call to coingecko: {}", body);
                 }
             };
-            coingecko::api::async_market_infos(std::move(request)).then(answer_functor).then(&handle_exception_pplx_task);
+            coingecko::api::async_market_infos(std::move(request)).then(answer_functor).then(error_functor);
         }
         else
         {
             //! If it's only test coin
             dispatcher_.trigger<coin_fully_initialized>(tickers);
+            nb_try = 0;
         }
     }
 
@@ -160,6 +202,6 @@ namespace atomic_dex
         std::shared_lock lock(m_market_mutex);
         // SPDLOG_INFO("Looking for ticker: {}", ticker);
         const auto it = m_market_registry.find(final_ticker);
-        return it != m_market_registry.cend() ? it->second : coingecko::api::single_infos_answer{.price_change_24h = "0.00", .current_price = "0.00"};
+        return it != m_market_registry.cend() ? it->second : coingecko::api::single_infos_answer{.price_change_24h = "0.00", .current_price = "0.00", .total_volume = "0.00"};
     }
 } // namespace atomic_dex

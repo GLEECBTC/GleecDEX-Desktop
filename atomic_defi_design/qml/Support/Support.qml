@@ -6,18 +6,19 @@ import QtGraphicalEffects 1.0
 import "../Components"
 import "../Constants"
 
+import App 1.0
+
 Item {
     id: root
 
-    DefaultFlickable {
+    DexFlickable {
         id: layout_background
 
-        anchors.fill: parent
-        anchors.leftMargin: 20
-        anchors.rightMargin: anchors.leftMargin
-        anchors.bottomMargin: anchors.leftMargin
-
-        contentWidth: width
+        width: parent.width - 20 
+        height: parent.height - 20
+        y: 10
+        x: 20
+        contentWidth: width - 20
         contentHeight: content_layout.height
 
         ColumnLayout {
@@ -130,7 +131,11 @@ Item {
 
             FAQLine {
                 title: qsTr("Do I need to be online for the duration of the swap?")
-                text: qsTr("Yes. You must remain connected to the internet and have your app running to successfully complete each atomic swap (very short breaks in connectivity are usually fine). Otherwise, there is risk of trade cancellation if you are a maker, and risk of loss of funds if you are a taker. The atomic swap protocol requires both participants to stay online and monitor the involved blockchains for the process to stay atomic.")
+                text: qsTr("Yes. You must remain connected to the internet and have your app running to successfully complete each atomic swap (very short breaks in connectivity are usually fine). Otherwise, there is risk of trade cancellation if you are a maker, and risk of loss of funds if you are a taker.
+The atomic swap protocol requires both participants to stay online and monitor the involved blockchains for the process to stay atomic.
+If you go offline, so will your orders, and any that are in progress will fail, leading to potential loss of trade / transaction fees, and a wait for the swap to timeout and issue a refund. It may also negatively affect your wallet's reputation score for future trade matching.
+When you come back online, your orders will begin to broadcast again at the price you set before you went offline. If there has been significant price movement in the meantime, you might unintentionally offer someone a bargain!
+For this reason, we recommend cancelling orders before closing %1, or reviewing and revising your prices when restarting %1.").arg(API.app_name)
             }
 
             FAQLine {
@@ -145,7 +150,7 @@ Network fees can vary greatly depending on your selected trading pair.").arg(API
 
             FAQLine {
                 title: qsTr("Do you provide user support?")
-                text: qsTr('Yes! %1 offers support through the <a href="https://komodoplatform.com/discord">Komodo Discord server</a>. The team and the community are always happy to help!').arg(API.app_name)
+                text: qsTr('Yes! %1 offers support through the <a href="%2">%1 Discord server</a>. The team and the community are always happy to help!').arg(API.app_name).arg(API.app_discord_url)
             }
 
             FAQLine {
@@ -160,7 +165,7 @@ Network fees can vary greatly depending on your selected trading pair.").arg(API
 
             FAQLine {
                 title: qsTr("Which devices can I use %1 on?").arg(API.app_name)
-                text: qsTr('%1 is available for mobile on both <a href="https://%1.io/">Android and iPhone, and for desktop on Windows, Mac, and Linux</a> operating systems.').arg(API.app_name)
+                text: qsTr('%1 is available for mobile on both <a href="%2">Android and iPhone, and for desktop on Windows, Mac, and Linux</a> operating systems.').arg(API.app_name).arg(API.app_website_url)
             }
 
             FAQLine {

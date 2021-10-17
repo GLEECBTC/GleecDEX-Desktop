@@ -1,54 +1,68 @@
+//! Qt Imports
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
-import "../Constants"
+import QtQuick.Controls 2.15
 
-BasicModal {
+//! Project Imports
+import "../Constants"
+import App 1.0
+
+BasicModal
+{
     id: root
 
-    closePolicy: Popup.NoAutoClose
+    property double durationBeforeRestart: 5            // Duration in seconds before the modal restarts the application.
+    property string reasonMsg: ""                       // A reason message to display to the user.
+    property var    onTimerEnded: () => {}              // A callback to call when the modal is about to restart the application.
 
-    onOpened: restart_timer.restart()
+    property double _timeLeft: durationBeforeRestart    // Stores the current time left. It is calculated by `_restartTimer` object.
 
-    readonly property double total_time: 5
-    property double time_left: total_time
-    property bool restart_requested: false
-    property var task_before_restart: () => {}
-    Timer {
-        id: restart_timer
-        interval: 100
-        repeat: true
-        onTriggered: time_left -= interval / 1000
-    }
+    function restartNow() { _timeLeft = 0 }             // Do not wait and restarts the application immediately.
 
-    onTime_leftChanged: {
-        if(time_left <= 0 && !restart_requested) {
+    closePolicy: Popup.NoAutoClose                      // Disallows modal closing.
+
+    onOpened: _restartTimer.restart()
+    on_TimeLeftChanged:
+    {
+        if (_timeLeft <= 0)
+        {
             console.log("Restarting the application...")
-            restart_timer.stop()
-            restart_requested = true
-            time_left = 0
-            task_before_restart()
+            _restartTimer.stop()
+            onTimerEnded()
             API.app.restart()
         }
     }
 
+    ModalContent
+    {
+        Layout.fillWidth: true
+        title: qsTr("Applying the changes...")
 
-    ModalContent {
-        title: qsTr("Applying the changes") + "..."
+        Timer
+        {
+            id: _restartTimer
 
-        DefaultText {
-            text_value: qsTr("Restarting the application...")
+            interval: 100
+            repeat: true
 
-            Layout.alignment: Qt.AlignHCenter
+            onTriggered: _timeLeft -= interval / 1000   // Calculates time left.
         }
 
-        DefaultBusyIndicator {
+        DexLabel
+        {
+            //! Positioning.
             Layout.alignment: Qt.AlignHCenter
+
+            text_value: reasonMsg !== "" ? qsTr("Restarting the application. %1").arg(reasonMsg) : qsTr("Restarting the application...")
         }
 
-        DefaultText {
-            text_value: General.formatDouble(time_left, 1, true)
+        DexBusyIndicator { Layout.alignment: Qt.AlignHCenter }
 
+        DexLabel
+        {
             Layout.alignment: Qt.AlignHCenter
+            text_value: General.formatDouble(_timeLeft, 1, true)
+            font: atomic_fixed_font
         }
     }
 }

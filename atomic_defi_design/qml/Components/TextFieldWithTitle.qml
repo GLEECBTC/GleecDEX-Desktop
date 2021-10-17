@@ -1,8 +1,10 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import "../Constants"
+import App 1.0
 
 ColumnLayout {
+    id: control
     property alias title: title_text.text
     property alias field: input_field
     property alias hide_button: hide_button
@@ -22,12 +24,13 @@ ColumnLayout {
     spacing: Style.rowSpacingSmall
 
     RowLayout {
+        visible: control.title !== ""
         TitleText {
             id: title_text
             visible: text !== ''
         }
 
-        DefaultText {
+        DexLabel {
             visible: required && input_field.text === ''
             font.pixelSize: Style.textSizeSmall2
             text_value: qsTr("Required")
@@ -41,6 +44,7 @@ ColumnLayout {
         echoMode: hidable && hiding ? TextInput.Password : TextInput.Normal
 
         Layout.fillWidth: true
+        Layout.fillHeight: true
 
         HideFieldButton {
             id: hide_button

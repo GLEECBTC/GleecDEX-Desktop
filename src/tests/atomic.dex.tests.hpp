@@ -30,11 +30,11 @@ struct tests_context : public antara::gaming::world::app
   private:
     std::atomic_bool         m_test_context_ready{false};
     std::atomic_bool         m_extra_coins_ready{false};
-    std::vector<std::string> m_extra_coins{"tQTUM", "tBTC-TEST", "QRC20", "RICK", "MORTY"};
+    std::vector<std::string> m_extra_coins{"RICK", "MORTY"};
 
   public:
     void
-    on_coin_enabled(const atomic_dex::coin_enabled& evt)
+    on_coin_initialized(const atomic_dex::coin_fully_initialized& evt)
     {
         if (std::any_of(begin(evt.tickers), end(evt.tickers), [this](auto&& item) { return item == this->m_extra_coins[0]; }))
         {
@@ -52,7 +52,7 @@ struct tests_context : public antara::gaming::world::app
     tests_context([[maybe_unused]] char** argv)
     {
 #if !defined(WIN32) && !defined(_WIN32)
-        this->dispatcher_.sink<atomic_dex::coin_enabled>().connect<&tests_context::on_coin_enabled>(*this);
+        this->dispatcher_.sink<atomic_dex::coin_fully_initialized>().connect<&tests_context::on_coin_initialized>(*this);
         //! Creates mm2 service.
         auto& mm2 = system_manager_.create_system<atomic_dex::mm2_service>(system_manager_);
 

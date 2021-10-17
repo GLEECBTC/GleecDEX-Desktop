@@ -14,7 +14,12 @@
  *                                                                            *
  ******************************************************************************/
 
+//! Deps
+#include <antara/app/net/http.code.hpp>
+#include <range/v3/algorithm/any_of.hpp>
+
 //! Project
+#include "atomicdex/api/mm2/rpc.recover.funds.hpp"
 #include "atomicdex/events/qt.events.hpp"
 #include "atomicdex/models/qt.orders.model.hpp"
 #include "atomicdex/pages/qt.settings.page.hpp"
@@ -25,7 +30,7 @@
 namespace atomic_dex
 {
     orders_model::orders_model(ag::ecs::system_manager& system_manager, entt::dispatcher& dispatcher, QObject* parent) :
-        QAbstractListModel(parent), m_system_manager(system_manager), m_dispatcher(dispatcher), m_model_proxy(new orders_proxy_model(this))
+        QAbstractListModel(parent), m_system_manager(system_manager), m_dispatcher(dispatcher), m_model_proxy(new orders_proxy_model(this, system_manager))
     {
         this->m_model_proxy->setSourceModel(this);
         this->m_model_proxy->setDynamicSortFilter(true);
@@ -42,7 +47,7 @@ namespace atomic_dex
     int
     orders_model::rowCount([[maybe_unused]] const QModelIndex& parent) const
     {
-        return this->m_model_data.orders_and_swaps.size();
+        return static_cast<int>(this->m_model_data.orders_and_swaps.size());
     }
 
     bool
@@ -125,6 +130,8 @@ namespace atomic_dex
         case ErrorEventsRole:
             item.error_events = value.toStringList();
             break;
+        default:
+            break;
         }
 
         emit dataChanged(index, index, {role});
@@ -188,6 +195,8 @@ namespace atomic_dex
             return item.success_events;
         case ErrorEventsRole:
             return item.error_events;
+        default:
+            break;
         }
         return {};
     }
@@ -281,8 +290,7 @@ namespace atomic_dex
             this->set_fetching_busy(true);
             this->reset_backend("set_current_page"); ///< We change page, we need to clear, but do not notify the front-end
             auto& mm2 = this->m_system_manager.get_system<mm2_service>();
-            mm2.set_orders_and_swaps_pagination_infos(
-                static_cast<std::size_t>(current_page), static_cast<std::size_t>(m_model_data.limit), m_model_data.filtering_infos);
+            mm2.set_orders_and_swaps_pagination_infos(static_cast<std::size_t>(current_page), m_model_data.limit, m_model_data.filtering_infos);
         }
     }
 
@@ -303,8 +311,7 @@ namespace atomic_dex
                 this->set_fetching_busy(true);
                 this->reset_backend("set_limit_nb_elements"); ///< We change page, we need to clear, but do not notify the front-end
                 auto& mm2 = this->m_system_manager.get_system<mm2_service>();
-                mm2.set_orders_and_swaps_pagination_infos(
-                    static_cast<std::size_t>(m_model_data.current_page), static_cast<std::size_t>(limit), m_model_data.filtering_infos);
+                mm2.set_orders_and_swaps_pagination_infos(m_model_data.current_page, static_cast<std::size_t>(limit), m_model_data.filtering_infos);
             }
             else
             {
@@ -313,10 +320,30 @@ namespace atomic_dex
         }
     }
 
+    QVariant
+    orders_model::get_recover_fund_data() const
+    {
+        return m_recover_funds_data.get();
+    }
+
+    void
+    orders_model::set_recover_fund_data(QVariant rpc_data)
+    {
+        auto json_result     = rpc_data.toJsonObject();
+        m_recover_funds_data = json_result;
+        emit recoverFundDataChanged();
+    }
+
     bool
     orders_model::is_fetching_busy() const
     {
         return m_fetching_busy.load();
+    }
+
+    bool
+    orders_model::is_recover_fund_busy() const
+    {
+        return m_recover_funds_busy.load();
     }
 
     void
@@ -329,10 +356,20 @@ namespace atomic_dex
         }
     }
 
+    void
+    orders_model::set_recover_fund_busy(bool recover_funds_status)
+    {
+        if (recover_funds_status != m_recover_funds_busy)
+        {
+            m_recover_funds_busy = recover_funds_status;
+            emit recoverFundBusyChanged();
+        }
+    }
+
     int
     orders_model::get_nb_pages() const
     {
-        return m_model_data.nb_pages;
+        return static_cast<int>(m_model_data.nb_pages);
     }
 } // namespace atomic_dex
 
@@ -354,7 +391,7 @@ namespace atomic_dex
     void
     orders_model::update_existing_order(const t_order_swaps_data& contents)
     {
-        if (const auto res = this->match(index(0, 0), OrderIdRole, contents.order_id); not res.isEmpty())
+        if (const auto res = this->match(index(0, 0), OrderIdRole, contents.order_id); !res.isEmpty())
         {
             const QModelIndex& idx = res.at(0);
             update_value(OrdersRoles::CancellableRole, contents.is_cancellable, idx, *this);
@@ -374,7 +411,7 @@ namespace atomic_dex
     void
     orders_model::update_swap(const t_order_swaps_data& contents)
     {
-        if (const auto res = this->match(index(0, 0), OrderIdRole, contents.order_id); not res.isEmpty())
+        if (const auto res = this->match(index(0, 0), OrderIdRole, contents.order_id); !res.isEmpty())
         {
             const QModelIndex& idx = res.at(0);
             update_value(OrdersRoles::IsRecoverableRole, contents.is_recoverable, idx, *this);
@@ -388,6 +425,8 @@ namespace atomic_dex
                 const QString& rel_coin  = data(idx, OrdersRoles::RelCoinRole).toString();
                 m_dispatcher.trigger<swap_status_notification>(
                     contents.order_id, prev_value.toString(), new_value.toString(), base_coin, rel_coin, new_value_d.toString());
+                auto& mm2 = m_system_manager.get_system<mm2_service>();
+                mm2.process_orderbook(true);
             }
             update_value(OrdersRoles::MakerPaymentIdRole, contents.maker_payment_id, idx, *this);
             update_value(OrdersRoles::TakerPaymentIdRole, contents.taker_payment_id, idx, *this);
@@ -413,7 +452,7 @@ namespace atomic_dex
             return;
         SPDLOG_INFO("Full initialization, inserting {} elements, nb_elements / page {}", size, contents.limit);
         beginResetModel();
-        m_model_data = std::move(contents);
+        m_model_data = contents;
         endResetModel();
         m_orders_id_registry = std::move(m_model_data.orders_registry);
         m_swaps_id_registry  = std::move(m_model_data.swaps_registry);
@@ -429,7 +468,7 @@ namespace atomic_dex
     {
         SPDLOG_INFO("common_insert, nb elements to insert: {}", contents.size());
         auto& data = m_model_data.orders_and_swaps;
-        beginInsertRows(QModelIndex(), rowCount(), rowCount() + contents.size() - 1);
+        beginInsertRows(QModelIndex(), rowCount(), rowCount() + static_cast<int>(contents.size()) - 1);
         data.insert(end(data), begin(contents), end(contents));
         if (kind == "orders")
         {
@@ -437,6 +476,11 @@ namespace atomic_dex
         }
         endInsertRows();
         emit lengthChanged();
+        if (m_system_manager.has_system<mm2_service>())
+        {
+            SPDLOG_DEBUG("Swaps inserted, refreshing orderbook to get new max taker vol");
+            this->m_system_manager.get_system<mm2_service>().process_orderbook(true);
+        }
         SPDLOG_DEBUG("{} model size: {}", kind, rowCount());
     }
 
@@ -445,22 +489,25 @@ namespace atomic_dex
     {
         const auto&                     data = contents.orders_and_swaps;
         std::vector<t_order_swaps_data> to_init;
-        std::for_each(begin(data) + contents.nb_orders, end(data), [this, &to_init](auto&& cur) {
-            if (cur.is_swap)
+        std::for_each(
+            begin(data) + contents.nb_orders, end(data),
+            [this, &to_init](const auto& cur)
             {
-                const auto& uuid = cur.order_id.toStdString();
-                if (this->m_swaps_id_registry.contains(uuid))
+                if (cur.is_swap)
                 {
-                    this->update_swap(cur);
+                    const auto& uuid = cur.order_id.toStdString();
+                    if (this->m_swaps_id_registry.contains(uuid))
+                    {
+                        this->update_swap(cur);
+                    }
+                    else
+                    {
+                        to_init.emplace_back(cur);
+                        m_swaps_id_registry.emplace(uuid);
+                    }
                 }
-                else
-                {
-                    to_init.emplace_back(cur);
-                    m_swaps_id_registry.emplace(uuid);
-                }
-            }
-        });
-        if (not to_init.empty())
+            });
+        if (!to_init.empty())
         {
             this->common_insert(to_init, "swaps");
         }
@@ -474,19 +521,22 @@ namespace atomic_dex
         if (contents.nb_orders > 0)
         {
             std::vector<t_order_swaps_data> to_init;
-            std::for_each(begin(data), begin(data) + contents.nb_orders, [this, &to_init, &are_present](auto&& cur) {
-                if (this->m_orders_id_registry.contains(cur.order_id.toStdString()))
+            std::for_each(
+                begin(data), begin(data) + contents.nb_orders,
+                [this, &to_init, &are_present](const auto& cur)
                 {
-                    this->update_existing_order(cur);
-                }
-                else
-                {
-                    m_orders_id_registry.emplace(to_init.emplace_back(cur).order_id.toStdString());
-                }
-                are_present.emplace(cur.order_id.toStdString());
-            });
+                    if (this->m_orders_id_registry.contains(cur.order_id.toStdString()))
+                    {
+                        this->update_existing_order(cur);
+                    }
+                    else
+                    {
+                        m_orders_id_registry.emplace(to_init.emplace_back(cur).order_id.toStdString());
+                    }
+                    are_present.emplace(cur.order_id.toStdString());
+                });
 
-            if (not to_init.empty())
+            if (!to_init.empty())
             {
                 this->common_insert(to_init, "orders");
             }
@@ -505,7 +555,7 @@ namespace atomic_dex
             {
                 //! If it's the case retrieve the index of the row that match this id
                 auto res_list = this->match(index(0, 0), OrderIdRole, QString::fromStdString(id));
-                if (not res_list.empty())
+                if (!res_list.empty())
                 {
                     //! And then delete it
                     this->removeRow(res_list.at(0).row());
@@ -532,13 +582,13 @@ namespace atomic_dex
         if (m_model_data.limit != contents.limit)
         {
             SPDLOG_INFO("nb elements / page changed");
-            this->set_limit_nb_elements(contents.limit);
+            this->set_limit_nb_elements(static_cast<int>(contents.limit));
         }
 
         if (m_model_data.current_page != contents.current_page)
         {
             SPDLOG_INFO("Page is different from mm2 contents, force change");
-            this->set_current_page(contents.current_page);
+            this->set_current_page(static_cast<int>(contents.current_page));
         }
     }
 } // namespace atomic_dex
@@ -553,6 +603,7 @@ namespace atomic_dex
         this->beginResetModel();
         reset_backend("reset");
         this->endResetModel();
+        this->set_fetching_busy(false);
     }
 
     void
@@ -569,15 +620,13 @@ namespace atomic_dex
     bool
     atomic_dex::orders_model::swap_is_in_progress(const QString& coin) const
     {
-        for (auto&& cur_hist_swap: m_model_data.orders_and_swaps)
+        auto functor = [coin](const auto& cur_hist_swap)
         {
-            if ((cur_hist_swap.base_coin == coin || cur_hist_swap.rel_coin == coin) &&
-                (cur_hist_swap.order_status == "matched" || cur_hist_swap.order_status == "ongoing" || cur_hist_swap.order_status == "matching"))
-            {
-                return true;
-            }
-        }
-        return false;
+            return (cur_hist_swap.base_coin == coin || cur_hist_swap.rel_coin == coin) &&
+                   (cur_hist_swap.order_status == "matched" || cur_hist_swap.order_status == "ongoing" || cur_hist_swap.order_status == "matching");
+        };
+
+        return ranges::any_of(m_model_data.orders_and_swaps, functor);
     }
 
     void
@@ -598,7 +647,7 @@ namespace atomic_dex
         const auto  contents = mm2.get_orders_and_swaps();
 
         //! If model is empty let's init it once
-        if (m_model_data.orders_and_swaps.size() == 0)
+        if (m_model_data.orders_and_swaps.empty())
         {
             init_model(contents);
         }
@@ -626,10 +675,16 @@ namespace atomic_dex
             //! Filtering changed
             this->set_fetching_busy(true);
             this->reset();
-            //this->reset_backend("set_filtering_infos"); ///< We change page, we need to clear, but do not notify the front-end
-            auto& mm2 = this->m_system_manager.get_system<mm2_service>();
-            mm2.set_orders_and_swaps_pagination_infos(
-                static_cast<std::size_t>(m_model_data.current_page), static_cast<std::size_t>(m_model_data.limit), m_model_data.filtering_infos);
+            // this->reset_backend("set_filtering_infos"); ///< We change page, we need to clear, but do not notify the front-end
+            if (this->m_system_manager.has_system<mm2_service>())
+            {
+                auto& mm2 = this->m_system_manager.get_system<mm2_service>();
+                mm2.set_orders_and_swaps_pagination_infos(m_model_data.current_page, m_model_data.limit, m_model_data.filtering_infos);
+            }
+            else
+            {
+                SPDLOG_WARN("MM2 is not available, skipping orders and swaps pagination reset");
+            }
         }
         else
         {
@@ -641,5 +696,78 @@ namespace atomic_dex
     orders_model::get_filtering_infos() const
     {
         return m_model_data.filtering_infos;
+    }
+
+    void
+    orders_model::recover_fund(QString uuid)
+    {
+        this->set_recover_fund_busy(true);
+        auto&                                   mm2_system = m_system_manager.get_system<mm2_service>();
+        nlohmann::json                          batch      = nlohmann::json::array();
+        nlohmann::json                          json_data  = ::mm2::api::template_request("recover_funds_of_swap");
+        mm2::api::recover_funds_of_swap_request req{.swap_uuid = uuid.toStdString()};
+        ::mm2::api::to_json(json_data, req);
+        batch.push_back(json_data);
+
+        auto answer_functor = [this](web::http::http_response resp)
+        {
+            nlohmann::json j_out = nlohmann::json::object();
+            std::string    body  = TO_STD_STR(resp.extract_string(true).get());
+            if (resp.status_code() == web::http::status_codes::OK)
+            {
+                auto answers        = nlohmann::json::parse(body);
+                auto recover_answer = ::mm2::api::rpc_process_answer_batch<t_recover_funds_of_swap_answer>(answers[0], "recover_funds_of_swap");
+                if (recover_answer.result.has_value())
+                {
+                    auto answer       = recover_answer.result.value();
+                    j_out["is_valid"] = true;
+                    j_out["coin"]     = answer.coin;
+                    j_out["action"]   = answer.action;
+                    j_out["tx_hash"]  = answer.tx_hash;
+                    j_out["tx_hex"]   = answer.tx_hex;
+                }
+                else if (recover_answer.error.has_value())
+                {
+                    j_out["is_valid"] = false;
+                    j_out["error"]    = recover_answer.error.value();
+                }
+                else
+                {
+                    j_out["is_valid"] = false;
+                    j_out["error"]    = recover_answer.raw_result;
+                }
+            }
+            else if (resp.status_code() == web::http::status_codes::RequestTimeout)
+            {
+                j_out["is_valid"] = false;
+                j_out["error"]    = "Request to mm2 timeout - skipping";
+            }
+            else
+            {
+                j_out["is_valid"] = false;
+                j_out["error"]    = body;
+            }
+            this->set_recover_fund_data(nlohmann_json_object_to_qt_json_object(j_out));
+            this->set_recover_fund_busy(false);
+        };
+
+        auto error_functor = [this](pplx::task<void> previous_task)
+        {
+            try
+            {
+                previous_task.wait();
+            }
+            catch (const std::exception& e)
+            {
+                SPDLOG_ERROR("pplx task error from orders_model::recover_fund(QString uuid): {}", e.what());
+                nlohmann::json j_out = nlohmann::json::object();
+                j_out["is_valid"]    = false;
+                j_out["error"]       = e.what();
+                this->set_recover_fund_data(nlohmann_json_object_to_qt_json_object(j_out));
+                this->set_recover_fund_busy(false);
+            }
+        };
+
+        mm2_system.get_mm2_client().async_rpc_batch_standalone(batch).then(answer_functor).then(error_functor);
     }
 } // namespace atomic_dex

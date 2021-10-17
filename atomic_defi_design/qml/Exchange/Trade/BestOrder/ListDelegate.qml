@@ -6,11 +6,13 @@ import QtQuick.Controls 2.15
 import Qaterial 1.0 as Qaterial
 
 import "../../../Components"
-import "../../../Constants"
+import "../../../Constants" as Constants
+
+import App 1.0 as App
 
 Item {
     id: _control
-    property bool coinEnable: API.app.portfolio_pg.global_cfg_mdl.get_coin_info(coin).is_enabled
+    property bool coinEnable: Constants.API.app.portfolio_pg.global_cfg_mdl.get_coin_info(coin).is_enabled
     property var isAsk: {
         if(parseInt(cex_rates)>0){
             false
@@ -28,7 +30,7 @@ Item {
         visible: mouse_are.containsMouse
         width: parent.width
         height: parent.height
-        color: theme.foregroundColor
+        color: App.DexTheme.foregroundColor
         opacity: 0.1
     }
 
@@ -40,11 +42,11 @@ Item {
         spacing: 10
         Row {
             Layout.alignment: Qt.AlignVCenter
-            Layout.preferredWidth: 140
+            Layout.preferredWidth: 130
             leftPadding: -10
             spacing: 5
             Image {
-                source: General.coinIcon(coin)
+                source: Constants.General.coinIcon(coin)
                 width: 20
                 height: 20
                 smooth: true
@@ -56,7 +58,8 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 leftPadding: 2
                 text: send + " " + atomic_qt_utilities.retrieve_main_ticker(coin)
-                font.pixelSize: Style.textSizeSmall1
+                font.family: App.DexTypo.fontFamily
+                font.pixelSize: 12
 
             }
         }
@@ -68,42 +71,48 @@ Item {
 
             width: 250
             contentItem: DexLabelUnlinked {
-                text_value: qsTr(" %1 is not Enabled - do you want to enable it to be able to select %2 best orders ?<br><a href='#'>Yes</a> -<a href='#no'>No</a>").arg(coin).arg(coin)
+                text_value: qsTr(" %1 is not enabled - Do you want to enable it to be able to select %2 best orders ?<br><a href='#'>Yes</a> - <a href='#no'>No</a>").arg(coin).arg(coin)
                 wrapMode: DefaultText.Wrap
                 width: 250
                 onLinkActivated: {
                     if(link==="#no") {
                         _tooltip.close()
                     }else {
-                        API.app.enable_coins([coin])
-                        _control.coinEnable = true
-                        _tooltip.close()
+                        if (Constants.API.app.enable_coins([coin]) === true) {
+                            _control.coinEnable = true
+                            _tooltip.close()
+                        }
+                        else {
+                            cannot_enable_coin_modal.open()
+                        }
                     }
+                }
+
+                ModalLoader {
+                    property string coin_to_enable_ticker: coin
+                    id: cannot_enable_coin_modal
+                    sourceComponent: CannotEnableCoinModal { coin_to_enable_ticker: cannot_enable_coin_modal.coin_to_enable_ticker }
                 }
             }
             delay: 200
         }
 
-        DefaultText {
+        DexLabel {
             Layout.alignment: Qt.AlignVCenter
             Layout.preferredWidth: 70
-            text: price_fiat+API.app.settings_pg.current_fiat_sign
-            font: theme.textType.caption
+            text: price_fiat + Constants.API.app.settings_pg.current_fiat_sign
+            font.family: App.DexTypo.fontFamily
+            font.pixelSize: 12
             horizontalAlignment: Label.AlignRight
             opacity: 1
 
         }
-        Item {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-
-
-        }
-        DefaultText {
+        DexLabel {
             Layout.alignment: Qt.AlignVCenter
             
             text: cex_rates==="0"? "N/A" : parseFloat(cex_rates)>0? "+"+parseFloat(cex_rates).toFixed(2)+"%" : parseFloat(cex_rates).toFixed(2)+"%"
-
+            font.family: App.DexTypo.fontFamily
+            font.pixelSize: 12
 
             Behavior on rightPadding {
                 NumberAnimation {
@@ -111,9 +120,8 @@ Item {
                 }
             }
 
-            color:cex_rates==="0"? Qt.darker(theme.foregroundColor) : parseFloat(cex_rates)<0? Style.colorGreen : Style.colorRed
+            color:cex_rates==="0"? Qt.darker(App.DexTheme.foregroundColor) : parseFloat(cex_rates)<0? App.DexTheme.greenColor : App.DexTheme.redColor
             horizontalAlignment: Label.AlignRight
-            font.pixelSize: Style.textSizeSmall1
             opacity: 1
 
         }
@@ -125,10 +133,21 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         onClicked: {
-            if(!API.app.portfolio_pg.global_cfg_mdl.get_coin_info(coin).is_enabled){
+            console.log(order_form.visible)
+            if(!Constants.API.app.portfolio_pg.global_cfg_mdl.get_coin_info(coin).is_enabled){
                 _tooltip.open()
             }else {
-                API.app.trading_pg.orderbook.select_best_order(uuid)
+                app.pairChanged(base_ticker, coin)
+                Constants.API.app.trading_pg.orderbook.select_best_order(uuid)
+                if(order_form.visible === false) {
+                    order_form.visible = true
+                }
+                if(order_form.hidden === true) {
+                    order_form.hidden = false
+                    if(order_form.contentVisible === false) {
+                        order_form.contentVisible = true
+                    }
+                }
             }
             
             //if(is_mine) return
@@ -137,6 +156,7 @@ Item {
     }
     HorizontalLine {
         width: parent.width
+        opacity: .4
     }
 
 }

@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import "../Constants"
+import App 1.0
 
 AnimatedRectangle {
     property string type
@@ -10,11 +11,12 @@ AnimatedRectangle {
 
     color: Style.getCoinTypeColor(model.type)
 
-    DefaultText {
+    DexLabel {
         id: type_tag
         anchors.verticalCenter: parent.verticalCenter
         anchors.horizontalCenter: parent.horizontalCenter
         text: type
-        font: theme.textType.overLine
+        color: Style.getCoinTypeTextColor(model.type)
+        font: DexTypo.overLine
     }
 }

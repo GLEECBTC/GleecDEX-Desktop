@@ -2,20 +2,19 @@ import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Controls 2.15
 
+import App 1.0
+
 import "../../../Components"
-import "../../../Constants"
 import "../../../"
 
 Item {
     property string title
-    property var items
+    property
+    var items
     property bool is_history: false
 
-    Layout.fillWidth: true
-    Layout.fillHeight: true
-
     ColumnLayout {
-        width: parent.width-10
+        width: parent.width - 10
         height: parent.height
         anchors.horizontalCenter: parent.horizontalCenter
 
@@ -39,14 +38,16 @@ Item {
 
             // Row
             delegate: OrderLine {
-                readonly property double anim_time: list.animationTimestamp > index*list.animationDelay ?
-                                                Math.min((list.animationTimestamp-index*list.animationDelay)/(list.animationTime), 1) : 0
+                readonly property double anim_time: list.animationTimestamp > index * list.animationDelay ?
+                    Math.min((list.animationTimestamp - index * list.animationDelay) / (list.animationTime), 1) : 0
                 details: model
                 opacity: anim_time
             }
 
-            populate:  Transition {
-                PropertyAction { target: list; property: "resetAnimation"; value: !list.resetAnimation }
+            populate: Transition {
+                PropertyAction {
+                    target: list;property: "resetAnimation";value: !list.resetAnimation
+                }
             }
 
 
@@ -62,23 +63,28 @@ Item {
                 running: true
                 repeat: true
                 onTriggered: () => {
-                     list.animationTimestamp += interval
-                     if(list.animationTimestamp > list.animationDelay*list.count + list.animationTime)
-                         repeat = false
+                    list.animationTimestamp += interval
+                    if (list.animationTimestamp > list.animationDelay * list.count + list.animationTime)
+                        repeat = false
                 }
             }
         }
 
         // Pagination
-        Pagination {
-            visible: is_history && API.app.orders_mdl.rowCount()>0
+        DexPaginator {
+            visible: is_history && list.count > 0
             enabled: list.enabled
+            Layout.maximumHeight: 70
             Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
-            Layout.topMargin: 10
-            Layout.rightMargin: 10
-            Layout.leftMargin: 10
-            Layout.bottomMargin: Layout.topMargin
+            Layout.bottomMargin: 10
         }
+    }
+
+    DexLabel
+    {
+        visible: list.count === 0
+        anchors.centerIn: parent
+        text: qsTr("No results found")
     }
 }

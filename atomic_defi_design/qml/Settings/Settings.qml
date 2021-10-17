@@ -9,6 +9,7 @@ import Qt.labs.settings 1.0
 // Project Imports
 import "../Components"
 import "../Constants"
+import App 1.0
 
 Item {
     id: root
@@ -215,10 +216,10 @@ Item {
                 Layout.fillWidth: true
                 Layout.leftMargin: combo_fiat.Layout.leftMargin
                 Layout.rightMargin: Layout.leftMargin
-                text: qsTr("Reset assets configuration")
+                text: qsTr("Reset wallet configuration")
                 onClicked: {
                     restart_modal.open()
-                    restart_modal.item.task_before_restart = () => { API.app.settings_pg.reset_coin_cfg() }
+                    restart_modal.item.onTimerEnded = () => { API.app.settings_pg.reset_coin_cfg() }
                 }
             }
 

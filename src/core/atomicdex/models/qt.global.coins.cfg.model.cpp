@@ -17,6 +17,7 @@
 //! Qt Headers
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QSettings>
 
 //! Project Headers
 #include "atomicdex/models/qt.global.coins.cfg.model.hpp"
@@ -38,7 +39,10 @@ namespace
             {"tx_uri", QString::fromStdString(coin.tx_uri)},
             {"address_uri", QString::fromStdString(coin.address_url)},
             {"is_custom_coin", coin.is_custom_coin},
-            {"is_enabled", coin.currently_enabled}};
+            {"is_enabled", coin.currently_enabled},
+            {"has_parent_fees_ticker", coin.has_parent_fees_ticker},
+            {"is_testnet", coin.is_testnet.value_or(false)},
+            {"fees_ticker", QString::fromStdString(coin.fees_ticker)}};
         return j;
     }
 } // namespace
@@ -46,7 +50,8 @@ namespace
 //! Constructor
 namespace atomic_dex
 {
-    global_coins_cfg_model::global_coins_cfg_model(QObject* parent)  : QAbstractListModel(parent)
+    global_coins_cfg_model::global_coins_cfg_model(entt::registry& entity_registry, QObject* parent) :
+        QAbstractListModel(parent), m_entity_registry(entity_registry)
     {
         for (int i = 0; i < CoinType::Size; ++i)
         {
@@ -127,19 +132,27 @@ namespace atomic_dex
             break;
         case Checked:
         {
-            if (item.checked != value.toBool())
+            auto real_value = value.toBool();
+            if (item.checked == real_value)
             {
-                item.checked = value.toBool();
-                if (item.checked)
-                {
-                    m_checked_nb++;
-                }
-                else
-                {
-                    m_checked_nb--;
-                }
-                emit checked_nbChanged();
+                return false;
             }
+            if (real_value)
+            {
+                auto enableable_coins_count = m_entity_registry.ctx<QSettings>().value("MaximumNbCoinsEnabled").toULongLong();
+                if (enableable_coins_count <= get_enabled_coins().size() + m_checked_nb)
+                {
+                    return false;
+                }
+                item.checked = real_value;
+                m_checked_nb++;
+            }
+            else
+            {
+                item.checked = real_value;
+                m_checked_nb--;
+            }
+            emit checked_nbChanged();
             break;
         }
         default:
@@ -290,6 +303,12 @@ namespace atomic_dex
     }
 
     global_coins_cfg_proxy_model*
+    global_coins_cfg_model::get_all_bep20_proxy() const
+    {
+        return m_proxies[CoinType::BEP20];
+    }
+
+    global_coins_cfg_proxy_model*
     global_coins_cfg_model::get_all_smartchains_proxy() const 
     {
         return m_proxies[CoinType::SmartChain];
@@ -352,5 +371,12 @@ namespace atomic_dex
     global_coins_cfg_model::get_enabled_coins() const 
     {
         return m_enabled_coins;
+    }
+
+    QString
+    global_coins_cfg_model::get_parent_coin(const QString& ticker) const
+    {
+        auto cfg = get_coin_info(ticker.toStdString());
+        return QString::fromStdString(cfg.fees_ticker);
     }
 } // namespace atomic_dex

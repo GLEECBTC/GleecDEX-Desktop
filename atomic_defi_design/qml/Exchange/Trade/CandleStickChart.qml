@@ -6,16 +6,17 @@ import QtCharts 2.3
 import QtWebEngine 1.8
 
 import "../../Components"
-import "../../Constants"
+
+import App 1.0
 
 // List
 
-InnerBackground {
+DexBox {
     id: graph_bg
-
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.top: parent.top
+
 
     content: Item {
         id: root
@@ -24,10 +25,12 @@ InnerBackground {
         height: graph_bg.height
 
         property bool pair_supported: false
-        readonly property bool is_fetching: chart.loadProgress < 100
+        readonly property bool is_fetching: dashboard.webEngineView.loadProgress < 100
+
+        onIs_fetchingChanged: dashboard.webEngineView.visible = !is_fetching && pair_supported
 
         RowLayout {
-            visible: pair_supported && !chart.visible
+            visible: pair_supported && !dashboard.webEngineView.visible
             anchors.centerIn: parent
 
             DefaultBusyIndicator {
@@ -44,6 +47,9 @@ InnerBackground {
 
         DefaultText {
             visible: !pair_supported
+            onVisibleChanged: if(visible) {
+                dex_chart.visible = false
+            }
             text_value: qsTr("There is no chart data for this pair yet")
             anchors.centerIn: parent
         }
@@ -57,7 +63,7 @@ InnerBackground {
             }
         }
 
-        readonly property string theme: app.globalTheme.chartTheme
+        readonly property string theme: DexTheme.chartTheme
         onThemeChanged:  try{loadChart(left_ticker?? atomic_app_primary_coin, right_ticker?? atomic_app_secondary_coin, true)}catch(e){}
 
         property string chart_base
@@ -97,39 +103,32 @@ InnerBackground {
             chart_base = atomic_qt_utilities.retrieve_main_ticker(base)
             chart_rel = atomic_qt_utilities.retrieve_main_ticker(rel)
 
-            chart.loadHtml(`
-    <style>
-    body { margin: 0; background: ${ graph_bg.color } }
-    </style>
+            dashboard.webEngineView.loadHtml(`
+                <style>
+                body { margin: 0; background: ${ graph_bg.color } }
+                </style>
 
-    <!-- TradingView Widget BEGIN -->
-    <div class="tradingview-widget-container">
-    <div id="tradingview_af406"></div>
-    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-    <script type="text/javascript">
-    new TradingView.widget(
-    {
-    "timezone": "Etc/UTC",
-    "locale": "en",
-    "autosize": true,
-    "symbol": "${symbol}",
-    "interval": "D",
-    "theme": "${theme}",
-    "style": "1",
-    "enable_publishing": false,
-    "save_image": false
-    }
-    );
-    </script>
-    </div>
-    <!-- TradingView Widget END -->`)
-        }
-
-        WebEngineView {
-            id: chart
-            anchors.fill: parent
-            anchors.margins: -1
-            visible: !is_fetching && pair_supported
+                <!-- TradingView Widget BEGIN -->
+                <div class="tradingview-widget-container">
+                <div id="tradingview_af406"></div>
+                <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+                <script type="text/javascript">
+                new TradingView.widget(
+                {
+                "timezone": "Etc/UTC",
+                "locale": "en",
+                "autosize": true,
+                "symbol": "${symbol}",
+                "interval": "D",
+                "theme": "${theme}",
+                "style": "1",
+                "enable_publishing": false,
+                "save_image": false
+                }
+                );
+                </script>
+                </div>
+                <!-- TradingView Widget END -->`);
         }
     }
 }

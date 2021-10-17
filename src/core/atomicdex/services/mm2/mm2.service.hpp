@@ -28,7 +28,7 @@
 #include <antara/gaming/ecs/system.manager.hpp>
 #include <boost/thread/shared_mutex.hpp>
 #include <boost/thread/synchronized_value.hpp>
-#include <reproc++/reproc.hpp>
+//#include <reproc++/reproc.hpp>
 
 //! Project Headers
 #include "atomicdex/api/mm2/mm2.client.hpp"
@@ -88,7 +88,7 @@ namespace atomic_dex
         mm2_client m_mm2_client;
 
         //! Process
-        reproc::process m_mm2_instance;
+        //reproc::process m_mm2_instance;
 
         //! Current ticker
         t_synchronized_ticker m_current_ticker{g_primary_dex_coin};
@@ -127,7 +127,7 @@ namespace atomic_dex
         double m_balance_factor{1.0};
 
         //! Refresh the orderbook registry (internal)
-        nlohmann::json prepare_batch_orderbook();
+        nlohmann::json prepare_batch_orderbook(bool is_a_reset);
 
         //! Batch balance / tx
         std::tuple<nlohmann::json, std::vector<std::string>, std::vector<std::string>> prepare_batch_balance_and_tx(bool only_tx = false) const;
@@ -135,6 +135,7 @@ namespace atomic_dex
         void process_balance_answer(const nlohmann::json& answer);
         void process_tx_answer(const nlohmann::json& answer_json);
         void process_tx_tokenscan(const std::string& ticker, bool is_a_refresh);
+        void fetch_single_balance(const coin_config& cfg_infos);
 
         //!
         std::pair<bool, std::string>                        process_batch_enable_answer(const nlohmann::json& answer);
@@ -259,6 +260,8 @@ namespace atomic_dex
 
         //! Pagination
         void set_orders_and_swaps_pagination_infos(std::size_t current_page = 1, std::size_t limit = 50, t_filtering_infos infos = {});
+
+        void change_segwit_status(std::string ticker, bool status);
     };
 } // namespace atomic_dex
 

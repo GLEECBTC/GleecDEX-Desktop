@@ -3,6 +3,7 @@ import QtQuick.Layouts 1.15
 import QtQuick.Controls 2.15
 
 import "../Constants"
+import App 1.0
 
 ColumnLayout {
     id: window_layout
@@ -14,7 +15,7 @@ ColumnLayout {
         image: General.image_path + "menu-settings-white.svg"
         Layout.fillWidth: true
         separator: false
-        onCheckedChanged: settings_modal.open()
+        onCheckedChanged: setting_modal.open()
     }
 
     SidebarLine {
@@ -31,6 +32,5 @@ ColumnLayout {
         image: ""
         Layout.fillWidth: true
         separator: false
-        checked: General.privacy_mode
     }
 }
