@@ -19,14 +19,14 @@ ClipRRect // Trade Card
 {
     id: _tradeCard
 
-    property string selectedTicker: !Constants.API.app.portfolio_pg.global_cfg_mdl.get_coin_info(left_ticker).is_testnet &&
-                                    left_ticker !== "RICK" && left_ticker !== "MORTY" ?
-                                        left_ticker : ""
+    property string selectedTicker: API.app.get_balance(left_ticker) > 0 ? left_ticker : ""
     property var    selectedOrder:  undefined
     property bool   best: false
     property bool   coinSelection: false
+    property bool   has_coins_with_balance: API.app.has_coins_with_balance()
 
     onSelectedTickerChanged: { selectedOrder = undefined; setPair(true, selectedTicker); _fromValue.text = "" }
+
     onSelectedOrderChanged:
     {
         if (typeof selectedOrder !== 'undefined' && selectedOrder.from_best_order) Constants.API.app.trading_pg.orderbook.select_best_order(selectedOrder.uuid)
@@ -35,13 +35,14 @@ ClipRRect // Trade Card
 
         Constants.API.app.trading_pg.determine_fees()
     }
+
     onEnabledChanged: selectedOrder = undefined
     Component.onDestruction: selectedOrder = undefined
     Component.onCompleted: _fromValue.forceActiveFocus()
     onBestChanged: if (best) Constants.API.app.trading_pg.orderbook.refresh_best_orders()
 
     width: bestOrderSimplified.visible ? 600 : coinSelection ? 450 : 380
-    height: col.height + 15
+    height: swap_card_content.height + 15
     radius: 20
 
     Connections // Catches C++ `trading_page` class signals.
@@ -78,6 +79,7 @@ ClipRRect // Trade Card
 
         function onBetterOrderDetected(newOrder)
         {
+            if (!selectedOrder) return
             // We shoould rename SelectedOrderStatus enum to OrderbookNotification.
             if (Constants.API.app.trading_pg.selected_order_status == SelectedOrderStatus.BetterPriceAvailable)
             {
@@ -130,11 +132,9 @@ ClipRRect // Trade Card
 
     Column    // Swap Card Content
     {
-        id: col
+        id: swap_card_content
 
         width: parent.width
-        spacing: 20
-
         Column // Header
         {
             id: _swapCardHeader
@@ -142,7 +142,9 @@ ClipRRect // Trade Card
             width: parent.width - 20
             leftPadding: 20
             topPadding: 20
+            bottomPadding: 20
             spacing: 15
+
             DexLabel // Title
             {
                 text: qsTr("Swap")
@@ -152,7 +154,7 @@ ClipRRect // Trade Card
 
             DefaultText // Description
             {
-                anchors.topMargin: 12
+                anchors.topMargin: 10
                 font.pixelSize: Constants.Style.textSizeSmall4
                 text: qsTr("Instant trading with best orders")
 
@@ -162,7 +164,7 @@ ClipRRect // Trade Card
                     visible: enabled
 
                     anchors.left: parent.right
-                    anchors.leftMargin: 100
+                    anchors.leftMargin: 80
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: -8
 
@@ -186,9 +188,17 @@ ClipRRect // Trade Card
                         delay: 500
                         timeout: 5000
                         visible: parent.hovered
-                        text: qsTr("Reset form.")
+                        text: qsTr("Reset form")
                     }
                 }
+            }
+
+            DexLabel // Title
+            {
+                text: qsTr("You have no tradable assets")
+                font: DexTypo.head6
+                opacity: .85
+                visible: !has_coins_with_balance
             }
         }
 
@@ -211,7 +221,7 @@ ClipRRect // Trade Card
                 Layout.preferredHeight: 90
                 Layout.alignment: Qt.AlignHCenter
                 radius: 20
-                visible: !coinSelectorSimplified.visible
+                visible: !coinSelectorSimplified.visible && has_coins_with_balance
 
                 DefaultText // From Text
                 {
@@ -278,11 +288,14 @@ ClipRRect // Trade Card
                 {
                     id: _fromValue
                     enabled: selectedTicker !== ""
+                    visible: enabled
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: 19
                     anchors.left: parent.left
                     anchors.leftMargin: 2
-                    placeholderText: typeof selectedOrder !== 'undefined' ? qsTr("Min: %1").arg(Constants.API.app.trading_pg.min_trade_vol) : qsTr("Enter an amount")
+                    placeholderText: Constants.API.app.trading_pg.max_volume == 0 ?
+                            "Loading wallet..." : typeof selectedOrder !== 'undefined' ?
+                            qsTr("Min: %1").arg(Constants.API.app.trading_pg.min_trade_vol) : qsTr("Enter an amount")
                     font.pixelSize: Constants.Style.textSizeSmall5
                     background: Rectangle { color: swap_from_card.color}
 
@@ -295,6 +308,7 @@ ClipRRect // Trade Card
                         }
                         else Constants.API.app.trading_pg.volume = text
                     }
+
                     onFocusChanged:
                     {
                         if (!focus && parseFloat(text) < parseFloat(Constants.API.app.trading_pg.min_trade_vol))
@@ -308,6 +322,7 @@ ClipRRect // Trade Card
                 Text    // Amount In Fiat
                 {
                     enabled: _fromValue.text
+                    visible: enabled
                     anchors.top: _fromValue.bottom
                     anchors.topMargin: -3
                     anchors.left: _fromValue.left
@@ -399,7 +414,6 @@ ClipRRect // Trade Card
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.right: parent.right
                         anchors.rightMargin: 5
-                        color: DexTheme.foregroundColor
 
                         up: false
                     }
@@ -420,6 +434,12 @@ ClipRRect // Trade Card
 
                     onClicked: _fromValue.text = Constants.API.app.trading_pg.max_volume
                 }
+
+                DefaultBusyIndicator
+                {
+                    anchors.centerIn: parent
+                    visible: selectedTicker !== "" && Constants.API.app.trading_pg.max_volume == 0
+                }
             }
 
             DexRectangle // To
@@ -427,10 +447,12 @@ ClipRRect // Trade Card
                 Layout.preferredWidth: _tradeCard.width - 20
                 Layout.preferredHeight: 90
                 Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 15
+                Layout.topMargin: 10
                 radius: 20
                 color: DexTheme.tradeFieldBoxBackgroundColor
-                visible: !bestOrderSimplified.visible && !coinSelectorSimplified.visible
+                visible: !bestOrderSimplified.visible
+                    && !coinSelectorSimplified.visible
+                    && has_coins_with_balance
 
                 DefaultText
                 {
@@ -546,14 +568,11 @@ ClipRRect // Trade Card
                         anchors.verticalCenterOffset: -5
                         anchors.left: _bestOrderIcon.right
                         anchors.leftMargin: 10
-
                         width: 60
 
                         text: enabled ? atomic_qt_utilities.retrieve_main_ticker(selectedOrder.coin) : ""
                         font.pixelSize: Constants.Style.textSizeSmall2
-
                         wrapMode: Text.NoWrap
-
 
                         DefaultText
                         {
@@ -574,8 +593,6 @@ ClipRRect // Trade Card
                         anchors.right: parent.right
                         anchors.rightMargin: 5
 
-                        color: DexTheme.foregroundColor
-
                         up: false
                     }
                 }
@@ -591,7 +608,10 @@ ClipRRect // Trade Card
                 Layout.fillWidth: true
 
                 enabled: typeof selectedOrder !== 'undefined'
-                visible: enabled && !bestOrderSimplified.visible && !coinSelectorSimplified.visible
+                visible: enabled
+                        && !bestOrderSimplified.visible
+                        && !coinSelectorSimplified.visible
+                        && has_coins_with_balance
 
                 DefaultText
                 {
@@ -599,6 +619,7 @@ ClipRRect // Trade Card
                     font.pixelSize: Constants.Style.textSizeSmall3
                     text: qsTr("Price")
                 }
+
                 DefaultText
                 {
                     Layout.alignment: Qt.AlignRight
@@ -611,13 +632,16 @@ ClipRRect // Trade Card
                 }
             }
 
-            Item
+            Item // Swap Button
             {
                 Layout.topMargin: 10
+                Layout.bottomMargin: 10
                 Layout.alignment: Qt.AlignHCenter
                 Layout.preferredWidth: _tradeCard.width - 30
                 Layout.preferredHeight: 50
-                visible: !bestOrderSimplified.visible && !coinSelectorSimplified.visible
+                visible: !bestOrderSimplified.visible
+                    && !coinSelectorSimplified.visible
+                    && has_coins_with_balance
 
                 DexGradientAppButton
                 {
@@ -672,7 +696,8 @@ ClipRRect // Trade Card
                     }
                 }
 
-                DefaultImage // Alert
+                // Send button error icon
+                DefaultAlertIcon
                 {
                     id: _swapAlert
 
@@ -680,166 +705,130 @@ ClipRRect // Trade Card
                     {
                         var left_ticker = Constants.API.app.trading_pg.market_pairs_mdl.left_selected_coin
                         var right_ticker = Constants.API.app.trading_pg.market_pairs_mdl.right_selected_coin
+                        var right_parent = Constants.API.app.portfolio_pg.global_cfg_mdl.get_parent_coin(right_ticker)
+                        var left_parent = Constants.API.app.portfolio_pg.global_cfg_mdl.get_parent_coin(left_ticker)
+                        var last_trading_error = Constants.API.app.trading_pg.last_trading_error
+                        var fees_error = Constants.API.app.trading_pg.fees.error
+
                         if (_fromValue.text === "" || parseFloat(_fromValue.text) === 0)
                             return qsTr("Entered amount must be superior than 0.")
                         if (typeof selectedOrder === 'undefined')
                             return qsTr("You must select an order.")
-                        if (Constants.API.app.trading_pg.last_trading_error == TradingError.VolumeIsLowerThanTheMinimum)
+                        if (last_trading_error == TradingError.VolumeIsLowerThanTheMinimum)
                             return qsTr("Entered amount is below the minimum required by this order: %1").arg(selectedOrder.base_min_volume)
-                        if (Constants.API.app.trading_pg.last_trading_error == TradingError.LeftParentChainNotEnabled)
+                        if (last_trading_error == TradingError.LeftParentChainNotEnabled)
                             return qsTr("%1 needs to be enabled in order to use %2").arg(Constants.API.app.portfolio_pg.global_cfg_mdl.get_parent_coin(left_ticker)).arg(left_ticker)
-                        if (Constants.API.app.trading_pg.last_trading_error == TradingError.LeftParentChainNotEnoughBalance)
-                            return qsTr("%1 balance needs to be funded, a non-zero balance is required to pay the gas of %2 transactions").arg(Constants.API.app.portfolio_pg.global_cfg_mdl.get_parent_coin(left_ticker)).arg(left_ticker)
-                        if (Constants.API.app.trading_pg.last_trading_error == TradingError.RightParentChainNotEnabled)
+                        if (last_trading_error == TradingError.LeftParentChainNotEnoughBalance)
+                            return qsTr("%1 balance needs to be funded, a non-zero balance is required to pay the gas of %2 transactions").arg(left_parent).arg(left_ticker)
+                        if (last_trading_error == TradingError.RightParentChainNotEnabled)
                             return qsTr("%1 needs to be enabled in order to use %2").arg(Constants.API.app.portfolio_pg.global_cfg_mdl.get_parent_coin(right_ticker)).arg(right_ticker)
-                        if (Constants.API.app.trading_pg.last_trading_error == TradingError.RightParentChainNotEnoughBalance)
-                            return qsTr("%1 balance needs to be funded, a non-zero balance is required to pay the gas of %2 transactions").arg(Constants.API.app.portfolio_pg.global_cfg_mdl.get_parent_coin(right_ticker)).arg(right_ticker)
-
+                        if (last_trading_error == TradingError.RightParentChainNotEnoughBalance)
+                            return qsTr("%1 balance needs to be funded, a non-zero balance is required to pay the gas of %2 transactions").arg(right_parent).arg(right_ticker)
+                        if (fees_error) {
+                            let coin = right_ticker
+                            if (fees_error.search(Constants.API.app.portfolio_pg.global_cfg_mdl.get_parent_coin(left_ticker)) > -1) {
+                                coin = left_ticker
+                            }
+                            return qsTr("%1 balance does not have enough funds to pay the gas of %2 transactions").arg(Constants.API.app.portfolio_pg.global_cfg_mdl.get_parent_coin(coin)).arg(coin)
+                        }
                         return ""
                     }
 
-                    anchors.left: parent.left
-                    anchors.leftMargin: 10
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    visible: ToolTip.text !== ""
-
-                    source: Qaterial.Icons.alert
-
-                    ToolTip.visible: _alertMouseArea.containsMouse
-                    ToolTip.text: getAlert()
-
-                    DefaultColorOverlay
-                    {
-                        anchors.fill: parent
-                        source: parent
-                        color: "yellow"
-                    }
-                    MouseArea
-                    {
-                        id: _alertMouseArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                    }
+                    tooltipText: _swapAlert.getAlert()
+                    visible: tooltipText !== ""
                 }
             }
         }
+
+        Item
+        {
+            height: 35
+            width: 150
+            visible: coinSelectorSimplified.visible
+
+            SearchField
+            {
+                id: _coinSearchField
+                height: 35
+                anchors.fill: parent
+                anchors.leftMargin: 20
+                forceFocus: true
+                textField.onTextChanged: _coinList.model.setFilterFixedString(textField.text)
+                Component.onDestruction: _coinList.model.setFilterFixedString("")
+            }
+        }
+
         Item
         {
             id: coinSelectorSimplified
-            width: parent.width
+            width: parent.width - 40
+            anchors.horizontalCenter: parent.horizontalCenter
             height: 300
-            visible: _tradeCard.coinSelection
-            Item
-            {
-                width: parent.width
-                height: 50
-                Qaterial.ColorIcon
-                {
-                    anchors.verticalCenter: parent.verticalCenter
-                    source: Qaterial.Icons.magnify
-                    color: DexTheme.foregroundColor
-                    x: 25
-                    opacity: .7
-                }
-                DexTextField
-                {
-                    id: _coinSearchField
-                    width: parent.width-70
-                    height: parent.height
-                    font.pixelSize: 16
-                    x: 45
-                    placeholderText: qsTr("Search")
-                    background: DexRectangle
-                    {
-                        border.width: 0
-                        color: 'transparent'
-                    }
-                    onTextChanged:
-                    {
-                      _coinList.model.setFilterFixedString(text)
-                    }
-                }
-            }
-            Connections {
-                target: _tradeCard
-                function onCoinSelectionChanged() {
-                    _coinSearchField.text = ""
-                }
-            }
+            visible: _tradeCard.coinSelection && has_coins_with_balance
 
             SubCoinSelector
             {
                 id: _coinList
-
+                anchors.fill: parent
+                anchors.topMargin: 10
                 onTickerSelected:
                 {
                     _tradeCard.selectedTicker = ticker
                     _tradeCard.coinSelection = false
                     _fromValue.forceActiveFocus()
                 }
-
-                anchors.fill: parent
-                anchors.rightMargin: 10
-                anchors.leftMargin: 20
-                anchors.bottomMargin: 10
-                anchors.topMargin: 50
             }
 
+            Connections {
+                target: _tradeCard
+                function onCoinSelectionChanged() {
+                    _coinSearchField.textField.text = ""
+                }
+            }
         }
+
+        Item
+        {
+            height: 45
+            width: 150
+            visible: bestOrderSimplified.visible && (_bestOrderList.count > 0 || _bestOrderSearchField.textField.text != "")
+
+            SearchField
+            {
+                id: _bestOrderSearchField
+                anchors.topMargin: 10
+                height: 35
+                anchors.fill: parent
+                anchors.leftMargin: 20
+                forceFocus: true
+                textField.onTextChanged: Constants.API.app.trading_pg.orderbook.best_orders.proxy_mdl.setFilterFixedString(textField.text)
+                Component.onDestruction: Constants.API.app.trading_pg.orderbook.best_orders.proxy_mdl.setFilterFixedString("")
+            }
+        }
+
         Item
         {
             id: bestOrderSimplified
-            width: parent.width
+            width: parent.width - 40
+            anchors.horizontalCenter: parent.horizontalCenter
             height: 300
-            visible: _tradeCard.best
-            Item
-            {
-                width: parent.width
-                height: 50
-                Qaterial.ColorIcon
-                {
-                    anchors.verticalCenter: parent.verticalCenter
-                    source: Qaterial.Icons.magnify
-                    x: 25
-                    opacity: .7
-                    color: Dex.CurrentTheme.textPlaceholderColor
-                }
-                DexTextField
-                {
-                    id: _bestOrderSearchField
-                    width: parent.width-70
-                    height: parent.height
-                    font.pixelSize: 16
-                    x: 45
-                    placeholderText: qsTr("Search")
-                    background: DexRectangle
-                    {
-                        border.width: 0
-                        color: 'transparent'
-                    }
-                    onTextChanged:
-                    {
-                        Constants.API.app.trading_pg.orderbook.best_orders.proxy_mdl.setFilterFixedString(text)
-                    }
-                }
-            }
-            Connections {
-                target: _tradeCard
-                function onBestChanged() {
-                    _bestOrderSearchField.text = ""
-                }
-            }
+            visible: _tradeCard.best && has_coins_with_balance
+
             SubBestOrder
             {
                 id: _bestOrderList
                 tradeCard: _tradeCard
+                anchors.fill: parent
+                anchors.topMargin: 10
+                visible: _tradeCard.width == 600
+
                 onSelectedOrderChanged:
                 {
                     _tradeCard.selectedOrder = selectedOrder
-                    _bestOrderSearchField.text = ""
+                    _bestOrderSearchField.textField.text = ""
                     _fromValue.forceActiveFocus()
                 }
+
                 onBestChanged:
                 {
                     if(!best)
@@ -847,14 +836,16 @@ ClipRRect // Trade Card
                         _tradeCard.best = false
                     }
                 }
-                anchors.fill: parent
-                anchors.rightMargin: 10
-                anchors.leftMargin: 20
-                anchors.bottomMargin: 10
-                anchors.topMargin: 50
-                visible: _tradeCard.width == 600
             }
-            BusyIndicator
+
+            Connections {
+                target: _tradeCard
+                function onBestChanged() {
+                    _bestOrderSearchField.textField.text = ""
+                }
+            }
+
+            DefaultBusyIndicator
             {
                 id: bestOrdersLoading
                 width: 200
@@ -881,26 +872,33 @@ ClipRRect // Trade Card
             }
         }
 
-        Item // Swap Info - Details
+        Item // Fees Info - Details
         {
             id: _feesCard
+            anchors.topMargin: 10
             anchors.horizontalCenter: parent.horizontalCenter
             width: 350
-            height: 60
+            height: 50
 
             enabled: !_swapAlert.visible
-            visible: _feesList.count !== 0 & _tradeCard.selectedOrder !== undefined &  parseFloat(_fromValue.text) > 0 & !bestOrderSimplified.visible & !coinSelectorSimplified.visible
+            visible: _tradeCard.selectedOrder !== undefined
+                    && parseFloat(_fromValue.text) > 0
+                    && !bestOrderSimplified.visible
+                    && !coinSelectorSimplified.visible
+                    && has_coins_with_balance
+                    && !_swapAlert.visible
 
             DexRectangle {
                 radius: 25
                 anchors.fill: parent
             }
 
-            DefaultBusyIndicator
+            DefaultText
             {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.horizontalCenter: parent.horizontalCenter
-                visible: Constants.API.app.trading_pg.preimage_rpc_busy
+                anchors.centerIn: parent
+                text: qsTr("Calculating fee estimate... ")
+                font.pixelSize: Constants.Style.textSizeSmall3
+                visible: fees_busy.visible
             }
 
             DefaultListView
@@ -909,14 +907,18 @@ ClipRRect // Trade Card
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.horizontalCenter: parent.horizontalCenter
 
-                visible: !Constants.API.app.trading_pg.preimage_rpc_busy
+                visible: {
+                    return !Constants.API.app.trading_pg.preimage_rpc_busy
+                }
+
                 enabled: parent.enabled
                 model: Constants.API.app.trading_pg.fees.total_fees
+
                 delegate: RowLayout
                 {
                     width: _feesCard.width
-                    Component.onCompleted: _feesCard.height += 20
-                    Component.onDestruction: _feesCard.height -= 20
+                    Component.onCompleted: _feesCard.height += 10
+                    Component.onDestruction: _feesCard.height -= 10
 
                     DefaultText
                     {
@@ -925,6 +927,7 @@ ClipRRect // Trade Card
                         text: qsTr("Total %1 fees: ").arg(modelData.coin)
                         font.pixelSize: Constants.Style.textSizeSmall3
                     }
+
                     DefaultText
                     {
                         Layout.alignment: Qt.AlignRight
@@ -933,11 +936,22 @@ ClipRRect // Trade Card
                                 .arg(parseFloat(modelData.required_balance).toFixed(8) / 1)
                                 .arg(Constants.General.getFiatText(modelData.required_balance, modelData.coin, false))
                         font.pixelSize: Constants.Style.textSizeSmall3
+                            
                     }
                 }
             }
+
+            DefaultBusyIndicator
+            {
+                id: fees_busy
+                width: 30
+                height: 30
+                anchors.centerIn: parent
+                visible: Constants.API.app.trading_pg.preimage_rpc_busy || _feesList.count == 0
+            }
         }
     }
+
     Row
     {
         anchors.rightMargin: 15
@@ -945,6 +959,8 @@ ClipRRect // Trade Card
         height: 50
         spacing: 5
         y: 12
+        visible: has_coins_with_balance
+
         DexAppButton
         {
             visible: _tradeCard.best
@@ -960,6 +976,7 @@ ClipRRect // Trade Card
                 Constants.API.app.trading_pg.orderbook.refresh_best_orders()
             }
         }
+
         DexAppButton
         {
             visible: _tradeCard.best || _tradeCard.coinSelection
@@ -969,6 +986,7 @@ ClipRRect // Trade Card
             anchors.verticalCenter: parent.verticalCenter
             width: 35
             height: 25
+
             onClicked:
             {
                 _tradeCard.best = false

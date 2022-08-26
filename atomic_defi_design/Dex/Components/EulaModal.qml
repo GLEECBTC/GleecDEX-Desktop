@@ -6,7 +6,7 @@ import QtQuick.Layouts 1.15
 import "../Constants"
 import App 1.0 //> API.app_name
 
-BasicModal
+MultipageModal
 {
     id: root
 
@@ -21,9 +21,9 @@ BasicModal
     {}
     property bool close_only: false
 
-    ModalContent
+    MultipageModalContent
     {
-        title: qsTr("Disclaimer & Terms of Service")
+        titleText: qsTr("Disclaimer & Terms of Service")
 
         InnerBackground
         {
@@ -41,7 +41,7 @@ BasicModal
                 contentWidth: eula_text.width - 10
                 contentHeight: eula_text.height
 
-                DexLabel
+                DefaultText
                 {
                     id: eula_text
                     font: DexTypo.body1
@@ -53,17 +53,21 @@ BasicModal
         }
 
         // Checkboxes
-        DexCheckBox
+        DefaultCheckBox
         {
             id: accept_eula
+            Layout.preferredWidth: parent.width
             visible: !close_only
+            labelWidth: eula_rect.width - 80
             text: qsTr("Accept EULA")
         }
 
-        DexCheckBox
+        DefaultCheckBox
         {
             id: accept_tac
+            Layout.preferredWidth: parent.width
             visible: !close_only
+            labelWidth: eula_rect.width - 80
             text: qsTr("Accept Terms and Conditions")
         }
 

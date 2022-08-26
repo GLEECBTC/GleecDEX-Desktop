@@ -57,6 +57,7 @@
 //! Project Headers
 #include "app.hpp"
 #include "atomicdex/constants/qt.wallet.enums.hpp"
+#include "atomicdex/constants/dex.constants.hpp"
 #include "atomicdex/models/qt.portfolio.model.hpp"
 #include "atomicdex/utilities/kill.hpp"
 #include "atomicdex/utilities/qt.utilities.hpp"
@@ -104,7 +105,7 @@ static void
 signal_handler(int signal)
 {
     SPDLOG_ERROR("sigabort received, cleaning mm2");
-    atomic_dex::kill_executable("mm2");
+    atomic_dex::kill_executable(atomic_dex::g_dex_api);
 #if defined(linux) || defined(__APPLE__)
     boost::stacktrace::safe_dump_to("./backtrace.dump");
     std::ifstream                 ifs("./backtrace.dump");
@@ -158,7 +159,7 @@ static void
 clean_previous_run()
 {
     SPDLOG_INFO("cleaning previous mm2 instance");
-    atomic_dex::kill_executable("mm2");
+    atomic_dex::kill_executable(atomic_dex::g_dex_api);
 }
 
 static void
@@ -313,7 +314,7 @@ handle_settings(QSettings& settings)
         }
     };
     SPDLOG_INFO("file name settings: {}", settings.fileName().toStdString());
-    create_settings_functor("CurrentTheme", QString("Dark.json"));
+    create_settings_functor("CurrentTheme", QString("Default - Dark"));
 
 #if defined(_WIN32) || defined(WIN32)
     create_settings_functor("ThemePath", QString::fromStdWString(atomic_dex::utils::get_themes_path().wstring()));

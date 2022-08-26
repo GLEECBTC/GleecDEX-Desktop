@@ -35,6 +35,7 @@ namespace
             {"ticker", QString::fromStdString(coin.ticker)},
             {"name", QString::fromStdString(coin.name)},
             {"type", QString::fromStdString(coin.type)},
+            {"nomics_id", QString::fromStdString(coin.nomics_id)},
             {"explorer_url", QJsonArray::fromStringList(atomic_dex::vector_std_string_to_qt_string_list(coin.explorer_url))},
             {"tx_uri", QString::fromStdString(coin.tx_uri)},
             {"address_uri", QString::fromStdString(coin.address_url)},
@@ -43,6 +44,7 @@ namespace
             {"has_parent_fees_ticker", coin.has_parent_fees_ticker},
             {"is_testnet", coin.is_testnet.value_or(false)},
             {"is_erc_family", coin.is_erc_family},
+            {"is_wallet_only", coin.wallet_only},
             {"fees_ticker", QString::fromStdString(coin.fees_ticker)}};
         return j;
     }

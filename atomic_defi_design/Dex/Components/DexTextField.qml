@@ -12,6 +12,7 @@ TextField
     property alias right_text: right_text.text_value
     property alias radius: background.radius
     property alias backgroundColor: background.color
+    property bool forceFocus: false
 
     font: DexTypo.body2
     placeholderTextColor: Dex.CurrentTheme.textPlaceholderColor
@@ -25,12 +26,11 @@ TextField
 
     leftPadding: Math.max(0, left_text.width + 20)
     rightPadding: Math.max(0, right_text.width + 20)
-    topPadding: 7
 
     background: DefaultRectangle
     {
         id: background
-        color: Dex.CurrentTheme.textFieldBackgroundColor
+        color: text_field.focus ? Dex.CurrentTheme.textFieldActiveBackgroundColor : Dex.CurrentTheme.textFieldBackgroundColor
         radius: 18
         anchors.fill: parent
     }
@@ -53,7 +53,7 @@ TextField
 
     RightClickMenu {}
 
-    DefaultText
+    DexLabel
     {
         id: left_text
         visible: text_value !== ""
@@ -64,7 +64,7 @@ TextField
         font.pixelSize: text_field.font.pixelSize
     }
 
-    DefaultText
+    DexLabel
     {
         id: right_text
         visible: text_value !== ""
@@ -73,5 +73,14 @@ TextField
         anchors.verticalCenter: parent.verticalCenter
         color: Dex.CurrentTheme.textFieldSuffixColor
         font.pixelSize: text_field.font.pixelSize
+    }
+
+    Component.onCompleted:
+    {
+        if (forceFocus) text_field.forceActiveFocus()
+    }
+
+    onVisibleChanged: {
+        if (forceFocus && visible) text_field.forceActiveFocus()
     }
 }

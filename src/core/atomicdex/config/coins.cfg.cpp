@@ -45,6 +45,7 @@ namespace atomic_dex
         cfg.minimal_claim_amount = cfg.is_claimable ? j.at("minimal_claim_amount").get<std::string>() : "0";
         j.at("active").get_to(cfg.active);
         j.at("currently_enabled").get_to(cfg.currently_enabled);
+
         if (j.contains("coinpaprika_id"))
         {
             j.at("coinpaprika_id").get_to(cfg.coinpaprika_id);
@@ -53,10 +54,25 @@ namespace atomic_dex
         {
             cfg.coinpaprika_id = "test-coin";
         }
+
+        if (j.contains("nomics_id"))
+        {
+            j.at("nomics_id").get_to(cfg.nomics_id);
+        }
+        else
+        {
+            cfg.nomics_id = "test-coin";
+        }
+
         if (j.contains("coingecko_id"))
         {
             j.at("coingecko_id").get_to(cfg.coingecko_id);
         }
+        else
+        {
+            cfg.coingecko_id = "test-coin";
+        }
+
         if (j.contains("is_custom_coin"))
         {
             cfg.is_custom_coin = true;
@@ -147,6 +163,10 @@ namespace atomic_dex
         {
             cfg.coin_type = CoinType::Moonriver;
         }
+        else if (cfg.type == "Moonbeam")
+        {
+            cfg.coin_type = CoinType::Moonbeam;
+        }
         else if (cfg.type == "HecoChain")
         {
             cfg.coin_type = CoinType::HecoChain;
@@ -227,6 +247,11 @@ namespace atomic_dex
         case CoinType::Moonriver:
             cfg.has_parent_fees_ticker = true;
             cfg.fees_ticker            = cfg.is_testnet.value() ? "MOVRT" : "MOVR";
+            cfg.is_erc_family          = true;
+            break;
+        case CoinType::Moonbeam:
+            cfg.has_parent_fees_ticker = true;
+            cfg.fees_ticker            = cfg.is_testnet.value() ? "GLMRT" : "GLMR";
             cfg.is_erc_family          = true;
             break;
         case CoinType::HecoChain:
