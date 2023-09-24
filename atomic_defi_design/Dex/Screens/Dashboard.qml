@@ -20,6 +20,7 @@ import "../Support" as SupportPage
 import "../Screens"
 import "../Addressbook" as Addressbook
 import Dex.Themes 1.0 as Dex
+import AtomicDEX.TradingMode 1.0
 
 Item
 {
@@ -82,7 +83,13 @@ Item
 
     Layout.fillWidth: true
 
-    onCurrentPageChanged: sidebar.currentLineType = currentPage
+    onCurrentPageChanged: {
+        sidebar.currentLineType = currentPage
+        if (currentPage == Dashboard.PageType.DEX)
+        {
+            API.app.trading_pg.set_pair(true, api_wallet_page.ticker)
+        }
+    }
 
     SupportPage.SupportModal { id: support_modal }
 
@@ -96,11 +103,12 @@ Item
             if (API.app.portfolio_pg.portfolio_mdl.length > atomic_settings2.value("MaximumNbCoinsEnabled")) {
                 open()
                 onTimerEnded = () => {
-                    API.app.settings_pg.reset_coin_cfg()
+                    API.app.reset_coin_cfg()
                 }
             }
         }
     }
+
 
     // Right side
     AnimatedRectangle
@@ -109,6 +117,18 @@ Item
         height: parent.height
         x: sidebar.width
         border.color: 'transparent'
+
+        Rectangle
+        {
+            radius: 0
+            anchors.fill: parent
+            anchors.rightMargin : - border.width
+            anchors.bottomMargin:  - border.width
+            anchors.leftMargin: - border.width
+            border.width: 1
+            border.color: Dex.CurrentTheme.lineSeparatorColor
+            color: 'transparent'
+        }
 
         // Modals
         ModalLoader
@@ -148,16 +168,6 @@ Item
             Addressbook.Main { }
         }
 
-        Component
-        {
-            id: settings
-
-            Settings
-            {
-                Layout.alignment: Qt.AlignCenter
-            }
-        }
-
         WebEngineView
         {
             id: webEngineView
@@ -187,6 +197,78 @@ Item
                 running: !loader.visible
             }
         }
+
+        // Status bar
+        DefaultRectangle
+        {
+            id: status_bar
+            visible: API.app.zcash_params.is_downloading()
+            width: parent.width
+            height: 24
+            anchors.bottom: parent.bottom
+            color: 'transparent'
+
+            DefaultRectangle
+            {
+                color: Dex.CurrentTheme.accentColor
+                width: 380
+                height: parent.height
+                anchors.right: parent.right
+                radius: 0
+
+                DefaultProgressBar
+                {
+                    id: download_progress
+                    anchors.fill: parent
+                    anchors.centerIn: parent
+                    width: parent.width - 10
+                    height: parent.height
+                    bar_width_pct: 0
+                    label.text: "Zcash params downloading:"
+                    label.font.family: 'Montserrat'
+                    label.font.pixelSize: 11
+                    label_width: 180
+                    pct_value.text: "0.00 %"
+                    pct_value.font.family: 'lato'
+                    pct_value.font.pixelSize: 11
+                }
+
+                DexMouseArea
+                {
+                    id: download_mouse_area
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: zcash_params_modal.open()
+                }
+            }
+            Connections
+            {
+                target: API.app.zcash_params
+                function onCombinedDownloadStatusChanged()
+                {
+                    const filesizes = General.zcash_params_filesize
+                    let combined_sum = Object.values(filesizes).reduce((total, v) => total + v, 0);
+
+                    let donwloaded_sum = 0
+                    let data = JSON.parse(API.app.zcash_params.get_combined_download_progress())
+                    for (let k in data) {
+                        let v = data[k];
+                        donwloaded_sum += v * filesizes[k]
+                    }
+
+                    let pct = General.formatDouble(donwloaded_sum / combined_sum * 100, 2)
+                    if (pct == 100)
+                    {
+                        API.app.enable_coins(API.app.zcash_params.get_enable_after_download())
+                        status_bar.visible = false
+                        API.app.zcash_params.clear_enable_after_download()
+                    }
+                    else status_bar.visible = true
+                    download_progress.bar_width_pct = pct
+                    download_progress.pct_value.text = pct + "%"
+                }
+            }
+        }
     }
 
     // Sidebar, left side
@@ -197,6 +279,7 @@ Item
         enabled: loader.status === Loader.Ready
 
         onLineSelected: currentPage = lineType;
+        onAddCryptoClicked: enable_coin_modal.open()
         onSettingsClicked: setting_modal.open()
         onSupportClicked: support_modal.open()
     }
@@ -210,9 +293,16 @@ Item
     // CEX Rates info
     ModalLoader
     {
-        id: cex_rates_modal
+        id: cex_info_modal
         sourceComponent: CexInfoModal {}
     }
+
+    ModalLoader
+    {
+        id: gas_info_modal
+        sourceComponent: GasInfoModal {}
+    }
+
     ModalLoader
     {
         id: min_trade_modal
@@ -223,6 +313,52 @@ Item
     {
         id: restart_modal
         sourceComponent: RestartModal {}
+    }
+
+    // Download Zcash Params
+    property alias zcash_params: zcash_params_modal.item
+    ModalLoader
+    {
+        id: zcash_params_modal
+        sourceComponent: ZcashParamsModal
+        {
+        }
+    }
+
+    function onEnablingZCoinStatus(coin, msg, human_date, timestamp)
+    {
+        // Ignore if coin already enabled (e.g. parent chain in batch)
+        console.log(msg)
+        if (msg.search("ZCashParamsNotFound") > -1)
+        {
+            console.log(coin)
+            API.app.zcash_params.enable_after_download(coin)
+            zcash_params_modal.open()
+        }
+    }
+
+    Component.onCompleted:
+    {
+        API.app.notification_mgr.enablingZCoinStatus.connect(onEnablingZCoinStatus)
+    }
+    Component.onDestruction:
+    {
+        API.app.notification_mgr.enablingZCoinStatus.disconnect(onEnablingZCoinStatus)
+    }
+
+    function isSwapDone(status)
+    {
+        switch (status) {
+            case "matching":
+            case "matched":
+            case "ongoing":
+                return false
+            case "successful":
+            case "refunding":
+            case "failed":
+            default:
+                return true
+        }
     }
 
     function getStatusColor(status)
@@ -238,22 +374,7 @@ Item
                 return Dex.CurrentTheme.sidebarLineTextHovered
             case "failed":
             default:
-                return DexTheme.redColor
-        }
-    }
-
-    function isSwapDone(status)
-    {
-        switch (status) {
-            case "matching":
-            case "matched":
-            case "ongoing":
-                return false
-            case "successful":
-            case "refunding":
-            case "failed":
-            default:
-                return true
+                return DexTheme.warningColor
         }
     }
 
@@ -280,18 +401,15 @@ Item
     function getStatusFontSize(status)
     {
         switch (status) {
-            case "matching":
-                return 9
-            case "matched":
-                return 9
-            case "ongoing":
-                return 9
             case "successful":
                 return 16
             case "refunding":
                 return 16
             case "failed":
                 return 12
+            case "matching":
+            case "matched":
+            case "ongoing":
             default:
                 return 9
         }

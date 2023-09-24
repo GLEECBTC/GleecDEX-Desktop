@@ -54,7 +54,7 @@ FloatingBackground
                 id: statusText
                 anchors.centerIn: parent
 
-                visible: clickable ? ! details ? false : (details.is_swap || !details.is_maker) : false
+                visible: clickable ? !details ? false : (details.is_swap || !details.is_maker) : false
                 font.pixelSize: getStatusFontSize(details.order_status)
                 color: !details ? Dex.CurrentTheme.foregroundColor : getStatusColor(details.order_status)
                 text_value: !details ? "" : visible ? getStatusStep(details.order_status) : ''
@@ -273,7 +273,7 @@ FloatingBackground
 
                 visible: (!is_history ? details.cancellable ?? false : false) === true ? (mouseArea.containsMouse || hovered) ? true : false : false
 
-                outlinedColor: Dex.CurrentTheme.noColor
+                outlinedColor: Dex.CurrentTheme.warningColor
                 hoverEnabled: true
 
                 onClicked: if (details) cancelOrder(details.order_id)
@@ -289,7 +289,7 @@ FloatingBackground
                 {
                     anchors.centerIn: parent
                     iconSize: 16
-                    color: Dex.CurrentTheme.noColor
+                    color: Dex.CurrentTheme.warningColor
                     source: Qaterial.Icons.close
                     scale: parent.visible ? 1 : 0
                 }

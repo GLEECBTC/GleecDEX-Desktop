@@ -96,12 +96,13 @@ Dex.DexListView
 
     delegate: Rectangle
     {
-        property color _idleColor: index % 2 === 1 ? Dex.CurrentTheme.backgroundColor : Dex.CurrentTheme.innerBackgroundColor
+        property color _idleColor: index % 2 === 1 ? Dex.CurrentTheme.listItemOddBackground : Dex.CurrentTheme.listItemEvenBackground
+        property int   activation_progress: Dex.General.zhtlcActivationProgress(activation_status, ticker)
 
         width: list.width
         height: _assetRowHeight
 
-        color: mouseArea.containsMouse ? Dex.CurrentTheme.buttonColorHovered : _idleColor
+        color: mouseArea.containsMouse ? Dex.CurrentTheme.listItemHoveredBackground : _idleColor
 
         RowLayout
         {
@@ -119,6 +120,30 @@ Dex.DexListView
                     source: Dex.General.coinIcon(ticker)
                     width: 30
                     height: 30
+
+                    Dex.DexRectangle
+                    {
+                        anchors.centerIn: parent
+                        anchors.fill: parent
+                        radius: 15
+                        enabled: Dex.General.isZhtlc(ticker) ? activation_progress < 100 : false
+                        visible: enabled
+                        opacity: .9
+                        color: Dex.DexTheme.backgroundColor
+                    }
+
+                    Dex.DexLabel
+                    {
+                        anchors.centerIn: parent
+                        anchors.fill: parent
+                        enabled: Dex.General.isZhtlc(ticker) ? activation_progress < 100 : false
+                        visible: enabled
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        text: activation_progress + "%"
+                        font: Dex.DexTypo.head8
+                        color: Dex.DexTheme.okColor
+                    }
                 }
 
                 Dex.DexLabel
@@ -140,7 +165,7 @@ Dex.DexListView
                     text: model.type
                     font: Dex.DexTypo.overLine
                     opacity: .7
-                    color: Dex.Style.getCoinTypeColor(model.type)
+                    color: Dex.Style.getCoinColor(ticker)
 
                     Dex.DexLabel
                     {
@@ -152,10 +177,9 @@ Dex.DexListView
                         text: "IDO"
                         font: Dex.DexTypo.overLine
                         opacity: .7
-                        color: Dex.DexTheme.redColor
+                        color: Dex.DexTheme.warningColor
                     }
                 }
-
             }
 
             Dex.DexLabel // Balance Column.
@@ -167,9 +191,18 @@ Dex.DexListView
                 verticalAlignment: Text.AlignVCenter
 
                 font: Dex.DexTypo.body2
-                text_value: parseFloat(balance).toFixed(8)
+                text_value:
+                {
+                    if (Dex.General.isZhtlc(ticker))
+                    {
+                        if (activation_progress != 100)
+                        {
+                            return qsTr("Activating: ") + activation_progress + "%"
+                        }
+                    }
+                    return parseFloat(balance).toFixed(8)
+                }
 
-                color: Qt.darker(Dex.DexTheme.foregroundColor, 0.8)
                 privacy: true
             }
 
@@ -183,8 +216,6 @@ Dex.DexListView
 
                 font: Dex.DexTypo.body2
                 text_value: Dex.General.formatFiat("", main_currency_balance, Dex.API.app.settings_pg.current_currency)
-
-                color: Qt.darker(Dex.DexTheme.foregroundColor, 0.8)
                 privacy: true
             }
 
@@ -218,7 +249,6 @@ Dex.DexListView
 
                 text_value: Dex.General.formatFiat('', main_currency_price_for_one_unit,
                                                    Dex.API.app.settings_pg.current_currency, 6)
-                color: Dex.DexTheme.colorThemeDarkLight
             }
 
             Item // Price Provider
@@ -270,7 +300,10 @@ Dex.DexListView
                 if (!can_change_ticker)
                     return
                 if (mouse.button === Qt.RightButton)
+                {
+                    contextMenu.can_disable = Dex.General.canDisable(ticker)
                     contextMenu.popup()
+                }
                 else
                 {
                     api_wallet_page.ticker = ticker
@@ -280,10 +313,10 @@ Dex.DexListView
 
             onPressAndHold:
             {
-                if (!can_change_ticker)
-                    return
+                if (!can_change_ticker) return
 
                 if (mouse.source === Qt.MouseEventNotSynthesized)
+                    contextMenu.can_disable = Dex.General.canDisable(ticker)
                     contextMenu.popup()
             }
         }

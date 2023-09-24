@@ -8,6 +8,7 @@ import "../../Components"
 import "../../Constants"
 import App 1.0
 import Dex.Themes 1.0 as Dex
+import Dex.Components 1.0 as Dex
 
 SetupPage
 {
@@ -158,7 +159,7 @@ SetupPage
 
     image_scale: 0.7
 
-    content: DexRectangle
+    content: Dex.Rectangle
     {
         color: Dex.CurrentTheme.floatingBackgroundColor
         width: column_layout.width + 50
@@ -210,6 +211,7 @@ SetupPage
             }
             mmo.model = getRandomWords(4)
         }
+
         ColumnLayout
         {
             id: column_layout
@@ -249,7 +251,7 @@ SetupPage
                     }
                 }
 
-                DexLabel
+                Dex.Text
                 {
                     font: DexTypo.head6
                     text_value: if (currentStep === 0)
@@ -274,8 +276,6 @@ SetupPage
                 Layout.fillWidth: true
             }
 
-
-
             ModalLoader
             {
                 id: eula_modal
@@ -293,6 +293,7 @@ SetupPage
             ColumnLayout
             {
                 visible: currentStep === 0
+                enabled: visible
                 Layout.preferredWidth: 450
                 spacing: Style.rowSpacing
 
@@ -311,20 +312,21 @@ SetupPage
                     field.onTextChanged: text_error = General.validateWallet(input_wallet_name.field.text)
                     field.forceFocus: true
 
-                    DexRectangle
+                    Dex.Rectangle
                     {
                         x: 5
                         height: 40
                         width: 60
                         radius: 20
-                        color: Dex.CurrentTheme.accentColor
                         anchors.verticalCenter: parent.verticalCenter
+                        color: Dex.CurrentTheme.inputLeftIconBackgroundColor
+
                         Qaterial.ColorIcon
                         {
                             anchors.centerIn: parent
                             iconSize: 19
                             source: Qaterial.Icons.wallet
-                            color: Dex.CurrentTheme.foregroundColor
+                            color: Dex.CurrentTheme.inputLeftIconColor
                         }
                     }
                 }
@@ -334,7 +336,7 @@ SetupPage
                     Layout.topMargin: 10
                     Layout.bottomMargin: Layout.topMargin
                     Layout.fillWidth: true
-                    color: Dex.CurrentTheme.noColor
+                    color: Dex.CurrentTheme.warningColor
                     height: warning_texts.height + 20
                     radius: 20
 
@@ -367,6 +369,7 @@ SetupPage
                         }
                     }
                 }
+
                 TextField
                 {
                     id: input_generated_seed
@@ -455,7 +458,7 @@ SetupPage
                     DefaultText
                     {
                         text_value: text_error
-                        color: Dex.CurrentTheme.noColor
+                        color: Dex.CurrentTheme.warningColor
                         visible: text !== ''
                     }
 
@@ -497,11 +500,11 @@ SetupPage
                 }
             }
 
-
             // Second page, write the seed word
             ColumnLayout
             {
                 visible: currentStep === 1
+                enabled: visible
 
                 DefaultRectangle
                 {
@@ -566,7 +569,8 @@ SetupPage
                                     width: (_insideFlow2.width - 30) / 4
                                     text: modelData ?? ""
                                     radius: 20
-                                    color: Dex.CurrentTheme.accentColor
+                                    btnEnabledColor: Dex.CurrentTheme.buttonColorEnabled
+                                    btnHoveredColor: Dex.CurrentTheme.accentColor
                                     font: DexTypo.body2
 
                                     onClicked:
@@ -607,9 +611,9 @@ SetupPage
                     {
                         x: 5
                         height: 40
-                        width: 60
+                        width: 50
                         radius: 20
-                        color: Dex.CurrentTheme.accentColor
+                        color: Dex.CurrentTheme.inputLeftIconBackgroundColor
                         anchors.verticalCenter: parent.verticalCenter
 
                         DefaultText
@@ -662,7 +666,7 @@ SetupPage
                     DefaultText
                     {
                         text_value: guess_text_error
-                        color: Dex.CurrentTheme.noColor
+                        color: Dex.CurrentTheme.warningColor
                         visible: input_seed_word.error
                         DexVisibleBehavior on visible
                         {}
@@ -673,6 +677,8 @@ SetupPage
             ColumnLayout
             {
                 visible: currentStep === 2
+                enabled: visible
+
                 Layout.preferredWidth: 450
                 spacing: Style.rowSpacing
 
@@ -681,6 +687,7 @@ SetupPage
                     id: _inputPassword
                     Layout.fillWidth: true
                     Layout.preferredHeight: 50
+                    field.placeholderText: qsTr("Enter password")
                     field.onAccepted: _keyChecker.isValid() ? eula_modal.open() : undefined
                 }
 
@@ -738,7 +745,7 @@ SetupPage
                 DefaultText
                 {
                     text_value: text_error
-                    color: Dex.CurrentTheme.noColor
+                    color: Dex.CurrentTheme.warningColor
                     visible: text !== ''
                 }
             }

@@ -6,6 +6,7 @@ import Dex.Themes 1.0 as Dex
 import App 1.0
 
 import "../../../Components"
+import "../../../Constants"
 
 // Content
 ColumnLayout
@@ -15,8 +16,9 @@ ColumnLayout
     property var details
     property var lastEvent
 
-    readonly property
-    var all_events: !details ? [] : has_error_event ? details.events.map(e => e.state) : details.success_events
+    readonly property var all_events: !details
+                            ? [] : has_error_event
+                            ? details.events.map(e => e.state) : details.success_events
 
     // Is there error in swap json?
     readonly property bool has_error_event:
@@ -246,10 +248,10 @@ ColumnLayout
                     if (event)
                     {
                         // Red for the Finished if swap failed
-                        if (event.state === "Finished" && details.order_status === "failed") return Dex.CurrentTheme.noColor
+                        if (event.state === "Finished" && details.order_status === "failed") return Dex.CurrentTheme.warningColor
 
                         // Red for error event, green for the others
-                        return details.error_events.indexOf(event.state) === -1 ? Dex.CurrentTheme.okColor : Dex.CurrentTheme.noColor
+                        return details.error_events.indexOf(event.state) === -1 ? Dex.CurrentTheme.okColor : Dex.CurrentTheme.warningColor
                     }
 
                     // In progress one is orange

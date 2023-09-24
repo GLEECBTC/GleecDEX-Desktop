@@ -84,9 +84,8 @@ Item
 
                 Dex.GradientButton
                 {
-                    width: 213
-                    height: 48.51
-                    radius: 18
+                    height: 40
+                    radius: 15
                     text: qsTr("+ NEW CONTACT")
 
                     onClicked: newContactPopup.open()
@@ -195,29 +194,30 @@ Item
                         {
                             model: modelData.categories.slice(0, 6)
 
-                            delegate: Dex.Rectangle
+                            delegate: Dex.MouseArea
                             {
-                                property int _currentColorIndex: contactTable._getCurrentTagColorId()
+                                width: tagBg.width + 2
+                                height: tagBg.height
+                                onClicked: searchbar.textField.text = modelData
+                                hoverEnabled: true
 
-                                width: tagLabel.width > 73 ? 83 : tagLabel.width + 10
-                                height: 21
-                                radius: 20
-                                color: Dex.CurrentTheme.addressBookTagColors[_currentColorIndex]
-
-                                Dex.MouseArea
+                                Dex.Rectangle
                                 {
-                                    anchors.fill: parent
-                                    onClicked: searchbar.textField.text = modelData
-                                }
+                                    id: tagBg
+                                    property int _currentColorIndex: contactTable._getCurrentTagColorId()
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: tagLabel.width + 12
+                                    height: 21
+                                    radius: 20
+                                    color: Dex.CurrentTheme.addressBookTagColors[_currentColorIndex]
 
-                                Dex.Text
-                                {
-                                    id: tagLabel
-                                    width: 70
-                                    anchors.centerIn: parent
-                                    text: modelData
-                                    horizontalAlignment: Text.AlignHCenter
-                                    elide: Text.ElideRight
+                                    Dex.Text
+                                    {
+                                        id: tagLabel
+                                        anchors.centerIn: parent
+                                        text: modelData
+                                        color: "white"
+                                    }
                                 }
                             }
                         }
@@ -226,15 +226,16 @@ Item
                     Row
                     {
                         spacing: 45
-                        width: 160
+                        width: edit_contact.implicitWidth + delete_contact.implicitWidth + 65
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.right: parent.right
-                        anchors.rightMargin: 2
+                        anchors.rightMargin: 20
+
                         Dex.ClickableText
                         {
+                            id: edit_contact
                             anchors.verticalCenter: parent.verticalCenter
-                            font.underline: true
-                            font.pixelSize: 15
+                            font: Dex.DexTypo.underline14
                             text: qsTr("Edit")
                             onClicked:
                             {
@@ -242,11 +243,12 @@ Item
                                 editContactLoader.open()
                             }
                         }
+
                         Dex.ClickableText
                         {
+                            id: delete_contact
                             anchors.verticalCenter: parent.verticalCenter
-                            font.underline: true
-                            font.pixelSize: 15
+                            font: Dex.DexTypo.underline14
                             text: qsTr("Delete")
                             onClicked: removeContactPopup.open()
 

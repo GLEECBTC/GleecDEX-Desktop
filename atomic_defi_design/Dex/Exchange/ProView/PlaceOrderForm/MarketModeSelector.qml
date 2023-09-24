@@ -11,6 +11,7 @@ Rectangle
     property string ticker: ""
 
     radius: 18
+    opacity: marketMode != API.app.trading_pg.market_mode ? 0.1 : 1
 
     gradient: Gradient
     {
@@ -32,33 +33,15 @@ Rectangle
         }
     }
 
-    // Background on topover of gradient to hide it when the market mode is different
-    DefaultRectangle
-    {
-        anchors.centerIn: parent
-        width: parent.width - 2
-        height: parent.height - 2
-        radius: parent.radius - 1
-        color: Dex.CurrentTheme.backgroundColor
-        visible: marketMode != API.app.trading_pg.market_mode
-    }
-
-    // Background when market mode is different
-    DefaultRectangle
-    {
-        anchors.centerIn: parent
-        width: parent.width - 2
-        height: parent.height - 2
-        radius: parent.radius - 1
-        color: Dex.CurrentTheme.tradeMarketModeSelectorNotSelectedBackgroundColor
-        visible: marketMode != API.app.trading_pg.market_mode
-    }
-
     DefaultText
     {
         anchors.centerIn: parent
         color: API.app.trading_pg.market_mode == marketMode ? Dex.CurrentTheme.gradientButtonTextEnabledColor : Dex.CurrentTheme.foregroundColor
-        text: (marketMode == Dex.MarketMode.Sell ? qsTr("Sell") : qsTr("Buy")) + ` ${ticker}`
+        text:
+        {
+            if (marketMode == Dex.MarketMode.Sell) qsTr("Sell %1", "TICKER").arg(ticker)
+            else qsTr("Buy %1", "TICKER").arg(ticker)
+        }
     }
 
     DefaultMouseArea

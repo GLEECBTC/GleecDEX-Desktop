@@ -18,7 +18,7 @@ Dex.ComboBoxWithSearchBar
     property string ticker
     property bool   index_changed: false
     
-    height: 60
+    height: 70
     enabled: !block_everything
 
     textRole: "ticker"
@@ -34,7 +34,7 @@ Dex.ComboBoxWithSearchBar
     {
         id: _delegate
         width: control.width
-        height: visible ? 60 : 0
+        height: visible ? 70 : 0
         highlighted: control.highlightedIndex === index
 
         contentItem: DexComboBoxLine { details: model }
@@ -70,7 +70,8 @@ Dex.ComboBoxWithSearchBar
                 ticker:                 model.data(model.index(idx, 0), 257),
                 name:                   model.data(model.index(idx, 0), 259),
                 balance:                model.data(model.index(idx, 0), 260),
-                main_currency_balance:  model.data(model.index(idx, 0), 261)
+                main_currency_balance:  model.data(model.index(idx, 0), 261),
+                activation_status:      model.data(model.index(idx, 0), 266)
             }
 
             prev_details = new_details

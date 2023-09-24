@@ -14,16 +14,22 @@
  *                                                                            *
  ******************************************************************************/
 
-// Deps Headers
+#include <filesystem>
+
 #include <meta/detection/detection.hpp>
 
-// Project Headers
-#include "atomicdex/api/mm2/mm2.client.hpp"
-#include "atomicdex/api/mm2/mm2.hpp"
-#include "atomicdex/api/mm2/rpc.tx.history.hpp"
+#include "enable_slp_rpc.hpp"
+#include "get_public_key_rpc.hpp"
+#include "enable_bch_with_tokens_rpc.hpp"
+#include "my_tx_history_rpc.hpp"
+#include "my_tx_history_v1_rpc.hpp"
+#include "mm2.client.hpp"
+#include "mm2.hpp"
 #include "atomicdex/constants/dex.constants.hpp"
-#include "rpc.get.public.key.hpp"
 #include "rpc.hpp"
+#include "rpc.tx.history.hpp"
+#include "rpc2.enable_tendermint_token.hpp"
+#include "rpc2.enable_tendermint_with_assets.hpp"
 
 namespace
 {
@@ -32,49 +38,61 @@ namespace
 
     t_http_client generate_client()
     {
-        web::http::client::http_client_config cfg;
         using namespace std::chrono_literals;
-        cfg.set_timeout(30s);
-        return web::http::client::http_client(FROM_STD_STR(atomic_dex::g_dex_rpc), cfg);
+        
+        //constexpr auto                          client_timeout = 30s;
+        web::http::client::http_client_config   cfg;
+
+        //cfg.set_timeout(client_timeout);
+        return {FROM_STD_STR(atomic_dex::g_dex_rpc), cfg};
     }
 
-    template <mm2::api::rpc Rpc>
+    template <atomic_dex::mm2::rpc Rpc>
     web::http::http_request make_request(typename Rpc::expected_request_type data_req = {})
     {
         web::http::http_request request;
-        nlohmann::json json_req = {{"method", Rpc::endpoint}, {"userpass", mm2::api::get_rpc_password()}};
+        nlohmann::json json_req = {{"method", Rpc::endpoint}, {"userpass", atomic_dex::mm2::get_rpc_password()}};
+        nlohmann::json json_data;
 
+        nlohmann::to_json(json_data, data_req);
         request.set_method(web::http::methods::POST);
         if (Rpc::is_v2)
         {
             json_req["mmrpc"] = "2.0";
-            json_req.push_back({"params", data_req});
+            json_req.push_back({"params", json_data});
         }
         else
         {
-            json_req.insert(json_req.end(), nlohmann::json(data_req));
+            json_req.insert(json_req.end(), json_data);
         }
         request.set_body(json_req.dump());
         return request;
     }
 
-    template <mm2::api::rpc Rpc>
-    typename Rpc::expected_answer_type make_answer(const web::http::http_response& answer)
+    template <atomic_dex::mm2::rpc Rpc>
+    Rpc process_rpc_answer(const web::http::http_response& answer)
     {
+        // SPDLOG_DEBUG("rpc answer: {}", TO_STD_STR(answer.extract_string(true).get()));
+        Rpc rpc;
         auto json_answer = nlohmann::json::parse(TO_STD_STR(answer.extract_string(true).get()));
         if (Rpc::is_v2)
         {
-            return json_answer.at("result").get<typename Rpc::expected_answer_type>();
+            // SPDLOG_DEBUG("v2 rpc answer")
+            if (answer.status_code() == 200)
+                rpc.result = json_answer.at("result").get<typename Rpc::expected_result_type>();
+            else
+                rpc.error = json_answer.get<typename Rpc::expected_error_type>();
         }
-        return json_answer.get<typename Rpc::expected_answer_type>();
+        else
+            rpc.result = json_answer.get<typename Rpc::expected_result_type>();
+        return rpc;
     }
 } // namespace
 
-namespace atomic_dex
+namespace atomic_dex::mm2
 {
     template <typename RpcReturnType>
-    RpcReturnType
-    mm2_client::rpc_process_answer(const web::http::http_response& resp, const std::string& rpc_command)
+    RpcReturnType mm2_client::rpc_process_answer(const web::http::http_response& resp, const std::string& rpc_command)
     {
         std::string body = TO_STD_STR(resp.extract_string(true).get());
         SPDLOG_INFO("resp code for rpc_command {} is {}", rpc_command, resp.status_code());
@@ -117,7 +135,7 @@ namespace atomic_dex
         catch (const std::exception& error)
         {
             SPDLOG_ERROR(
-                "{} l{} f[{}], exception caught {} for rpc {}, body: {}", __FUNCTION__, __LINE__, fs::path(__FILE__).filename().string(), error.what(),
+                "{} l{} f[{}], exception caught {} for rpc {}, body: {}", __FUNCTION__, __LINE__, std::filesystem::path(__FILE__).filename().string(), error.what(),
                 rpc_command, body);
             answer.rpc_result_code = -1;
             answer.raw_result      = error.what();
@@ -136,18 +154,33 @@ namespace atomic_dex
         return resp;
     }
 
-    template <::mm2::api::rpc ApiCallType>
-    void mm2_client::process_rpc_async(const std::function<void(typename ApiCallType::expected_answer_type)>& on_rpc_processed)
+    template <rpc Rpc>
+    void mm2_client::process_rpc_async(const std::function<void(Rpc)>& on_rpc_processed)
     {
-        auto request = make_request<ApiCallType>();
+        using request_type = typename Rpc::expected_request_type;
+        process_rpc_async(request_type{}, on_rpc_processed);
+    }
+    template void mm2_client::process_rpc_async<get_public_key_rpc>(const std::function<void(get_public_key_rpc)>&);
+    template void mm2_client::process_rpc_async<enable_slp_rpc>(const std::function<void(enable_slp_rpc)>&);
+    template void mm2_client::process_rpc_async<enable_bch_with_tokens_rpc>(const std::function<void(enable_bch_with_tokens_rpc)>&);
+    template void mm2_client::process_rpc_async<enable_tendermint_token_rpc>(const std::function<void(enable_tendermint_token_rpc)>&);
+    template void mm2_client::process_rpc_async<enable_tendermint_with_assets_rpc>(const std::function<void(enable_tendermint_with_assets_rpc)>&);
+    template void mm2_client::process_rpc_async<my_tx_history_rpc>(const std::function<void(my_tx_history_rpc)>&);
+    template void mm2_client::process_rpc_async<my_tx_history_v1_rpc>(const std::function<void(my_tx_history_v1_rpc)>&);
+    
+    template <mm2::rpc Rpc>
+    void mm2_client::process_rpc_async(typename Rpc::expected_request_type request, const std::function<void(Rpc)>& on_rpc_processed)
+    {
+        auto http_request = make_request<Rpc>(request);
         generate_client()
-            .request(request, m_token_source.get_token())
-            .template then([on_rpc_processed](const web::http::http_response& resp)
+            .request(http_request, m_token_source.get_token())
+            .template then([on_rpc_processed, request](const web::http::http_response& resp)
                            {
                                try
                                {
-                                   auto answer = make_answer<ApiCallType>(resp);
-                                   on_rpc_processed(answer);
+                                   auto rpc = process_rpc_answer<Rpc>(resp);
+                                   rpc.request = request;
+                                   on_rpc_processed(rpc);
                                }
                                catch (const std::exception& ex)
                                {
@@ -155,8 +188,6 @@ namespace atomic_dex
                                }
                            });
     }
-
-    template void mm2_client::process_rpc_async<atomic_dex::mm2::get_public_key>(const std::function<void(mm2::get_public_key_answer)>&);
 
     void
     mm2_client::stop()
@@ -166,13 +197,13 @@ namespace atomic_dex
 
     template <typename TRequest, typename TAnswer>
     TAnswer
-    mm2_client::process_rpc(TRequest&& request, std::string rpc_command)
+    mm2_client::process_rpc(TRequest&& request, std::string rpc_command, bool is_v2)
     {
-        SPDLOG_INFO("Processing rpc call: {}", rpc_command);
+        SPDLOG_DEBUG("Processing rpc call: {}", rpc_command);
 
-        nlohmann::json json_data = ::mm2::api::template_request(rpc_command);
+        nlohmann::json json_data = mm2::template_request(rpc_command, is_v2);
 
-        ::mm2::api::to_json(json_data, request);
+        mm2::to_json(json_data, request);
 
         auto json_copy        = json_data;
         json_copy["userpass"] = "*******";
@@ -183,6 +214,12 @@ namespace atomic_dex
         rpc_request.set_body(json_data.dump());
         auto resp = generate_client().request(rpc_request).get();
         return rpc_process_answer<TAnswer>(resp, rpc_command);
+    }
+
+    t_enable_z_coin_cancel_answer
+    mm2_client::rpc_enable_z_coin_cancel(t_enable_z_coin_cancel_request&& request)
+    {
+        return process_rpc<t_enable_z_coin_cancel_request, t_enable_z_coin_cancel_answer>(std::forward<t_enable_z_coin_cancel_request>(request), "task::enable_z_coin::cancel", true);
     }
 
     t_disable_coin_answer
@@ -199,5 +236,5 @@ namespace atomic_dex
     }
 } // namespace atomic_dex
 
-template mm2::api::tx_history_answer   atomic_dex::mm2_client::rpc_process_answer(const web::http::http_response& resp, const std::string& rpc_command);
-template mm2::api::disable_coin_answer atomic_dex::mm2_client::rpc_process_answer(const web::http::http_response& resp, const std::string& rpc_command);
+template atomic_dex::mm2::tx_history_answer   atomic_dex::mm2::mm2_client::rpc_process_answer(const web::http::http_response& resp, const std::string& rpc_command);
+template atomic_dex::mm2::disable_coin_answer atomic_dex::mm2::mm2_client::rpc_process_answer(const web::http::http_response& resp, const std::string& rpc_command);

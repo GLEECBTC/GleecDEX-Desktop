@@ -8,6 +8,7 @@ import QtQuick.Window 2.12
 import QtQuick.Controls.Universal 2.12
 
 import Qaterial 1.0 as Qaterial
+import ModelHelper 0.1
 
 import "../Components"
 import "../Constants"
@@ -23,6 +24,9 @@ Qaterial.Dialog
     property var recommended_fiats: API.app.settings_pg.get_recommended_fiats()
     property var fiats: API.app.settings_pg.get_available_fiats()
     property var enableable_coins_count: enableable_coins_count_combo_box.currentValue
+    property var orders: API.app.orders_mdl.orders_proxy_mdl.ModelHelper
+    readonly property date default_min_date: new Date("2019-01-01")
+    readonly property date default_max_date: new Date(new Date().setDate(new Date().getDate()))
 
     width: 950
     height: 650
@@ -34,30 +38,6 @@ Qaterial.Dialog
     dim: true
     modal: true
     title: "Settings"
-
-    function disconnect()
-    {
-        let dialog = app.showDialog(
-        {
-            "title": qsTr("Confirm Logout"),
-            text: qsTr("Are you sure you want to log out?"),
-            standardButtons: Dialog.Yes | Dialog.Cancel,
-            warning: true,
-            yesButtonText: qsTr("Yes"),
-            cancelButtonText: qsTr("Cancel"),
-            onAccepted: function(text)
-            {
-                app.notifications_list = []
-                app.currentWalletName = ""
-                API.app.disconnect()
-                onDisconnect()
-                window.logged = false
-                dialog.close()
-                dialog.destroy()
-            }
-        })
-
-    }
 
 
     header: Item
@@ -227,6 +207,7 @@ Qaterial.Dialog
                             topPadding: 10
                             spacing: 15
 
+                            // Notifications toggle
                             RowLayout
                             {
                                 width: parent.width - 30
@@ -251,6 +232,32 @@ Qaterial.Dialog
                                 }
                             }
 
+                            // Spam filter toggle
+                            RowLayout
+                            {
+                                width: parent.width - 30
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                height: 50
+
+                                DexLabel
+                                {
+                                    Layout.alignment: Qt.AlignVCenter
+                                    Layout.fillWidth: true
+                                    font: DexTypo.subtitle1
+                                    text: qsTr("Hide Poison Transactions in History")
+                                }
+
+                                Item { Layout.fillWidth: true }
+
+                                DexSwitch
+                                {
+                                    Layout.alignment: Qt.AlignVCenter
+                                    Component.onCompleted: checked = API.app.settings_pg.spamfilter_enabled
+                                    onCheckedChanged: API.app.settings_pg.spamfilter_enabled = checked
+                                }
+                            }
+
+                            // Max Coins Dropdown
                             RowLayout
                             {
                                 width: parent.width - 30
@@ -293,6 +300,44 @@ Qaterial.Dialog
                                 onClicked: openLogsFolder()
                             }
 
+                            // Sync date picker
+                            RowLayout
+                            {
+                                width: parent.width - 30
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                height: 50
+
+                                DexLabel
+                                {
+                                    Layout.alignment: Qt.AlignVCenter
+                                    Layout.fillWidth: true
+                                    font: DexTypo.subtitle1
+                                    text: qsTr("ZHTLC sync date")
+                                }
+
+                                Item { Layout.fillWidth: true }
+
+                                DatePicker
+                                {
+                                    id: sync_date
+                                    titleText: qsTr("Sync Date")
+                                    minimumDate: default_min_date
+                                    maximumDate: default_max_date
+                                    selectedDate: {
+                                        var date = new Date(new Date(0).setUTCSeconds(API.app.settings_pg.get_pirate_sync_date()));
+                                        console.log(API.app.settings_pg.get_pirate_sync_date());
+                                        console.log(date);
+                                        return date;
+                                    }
+                                    onAccepted: {
+                                        atomic_settings2.setValue(
+                                            "PirateSyncDate",
+                                            parseInt(selectedDate.getTime().valueOf()/1000)
+                                        )
+                                    }
+                                }
+                            }
+
                             SettingsButton
                             {
                                 width: parent.width - 30
@@ -302,7 +347,7 @@ Qaterial.Dialog
 
                                 onClicked:
                                 {
-                                    dialog = app.showDialog(
+                                    reset_dialog = app.showDialog(
                                     {
                                         title: qsTr("Reset wallet configuration"),
                                         text: qsTr("This will restart your wallet with default settings"),
@@ -314,11 +359,11 @@ Qaterial.Dialog
                                             restart_modal.open()
                                             restart_modal.item.onTimerEnded = () =>
                                             {
-                                                API.app.settings_pg.reset_coin_cfg()
+                                                API.app.reset_coin_cfg()
                                             }
                                         }
                                     })
-                                    dialog.close()
+                                    reset_dialog.close()
                                 }
                             }
                         }
@@ -484,7 +529,7 @@ Qaterial.Dialog
                                                 standardButtons: Dialog.Yes | Dialog.Cancel,
                                                 closePolicy: Popup.NoAutoClose,
                                                 warning: true,
-                                                iconColor: Dex.CurrentTheme.noColor,
+                                                iconColor: Dex.CurrentTheme.warningColor,
                                                 isPassword: true,
                                                 placeholderText: qsTr("Type password"),
                                                 yesButtonText: qsTr("Confirm"),
@@ -503,6 +548,7 @@ Qaterial.Dialog
                                                             text: qsTr("2FA disabled successfully"),
                                                             yesButtonText: qsTr("Ok"),
                                                             titleBold: true,
+                                                            showCancelBtn: false,
                                                             standardButtons: Dialog.Ok
                                                         })
                                                         atomic_settings2.setValue("2FA", 0)
@@ -517,6 +563,7 @@ Qaterial.Dialog
                                                             warning: true,
                                                             standardButtons: Dialog.Ok,
                                                             titleBold: true,
+                                                            showCancelBtn: false,
                                                             yesButtonText: qsTr("Ok"),
                                                         })
                                                         checked = true
@@ -692,8 +739,9 @@ Qaterial.Dialog
                 iconSource: Qaterial.Icons.logout
                 onClicked:
                 {
-                    disconnect()
                     setting_modal.close()
+                    if (orders.count != 0) logout_modal.open()
+                    else return_to_login()
                 }
             }
         }

@@ -11,52 +11,64 @@ import "Orders/"
 import App 1.0
 import Dex.Themes 1.0 as Dex
 
+
 MultipageModal
 {
     id: root
     readonly property var fees: API.app.trading_pg.fees
-
-    horizontalPadding: 30
-    verticalPadding: 40
+    width: 720
+    horizontalPadding: 20
+    verticalPadding: 20
+    closePolicy: Popup.NoAutoClose
 
     MultipageModalContent
     {
         titleText: qsTr("Confirm Exchange Details")
         title.font.pixelSize: Style.textSize2
         titleAlignment: Qt.AlignHCenter
-        titleTopMargin: 10
-        topMarginAfterTitle: 0
-        flickMax: window.height - 450
+        titleTopMargin: 0
+        topMarginAfterTitle: 10
+        flickMax: window.height - 480
 
         header: [
             RowLayout
             {
                 id: dex_pair_badges
+                Layout.fillWidth: true
+                Layout.preferredHeight: 70
+                Layout.preferredWidth: 480
+
+                Item { Layout.fillWidth: true }
 
                 PairItemBadge
                 {
-                    source: General.coinIcon(!base_ticker ? atomic_app_primary_coin : base_ticker)
                     ticker: base_ticker
                     fullname: General.coinName(base_ticker)
                     amount: base_amount
+                    Layout.fillHeight: true
                 }
+
+                Item { Layout.fillWidth: true }
 
                 Qaterial.Icon
                 {
-                    Layout.fillWidth: true
                     Layout.alignment: Qt.AlignVCenter
-
                     color: Dex.CurrentTheme.foregroundColor
                     icon: Qaterial.Icons.swapHorizontal
+                    Layout.fillHeight: true
                 }
+
+                Item { Layout.fillWidth: true }
 
                 PairItemBadge
                 {
-                    source: General.coinIcon(!rel_ticker ? atomic_app_primary_coin : rel_ticker)
                     ticker: rel_ticker
                     fullname: General.coinName(rel_ticker)
                     amount: rel_amount
+                    Layout.fillHeight: true
                 }
+
+                Item { Layout.fillWidth: true }
             },
 
             PriceLineSimplified
@@ -70,6 +82,38 @@ MultipageModal
                 id: warnings_text
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
+
+                // Large margin warning
+                FloatingBackground
+                {
+                    Layout.alignment: Qt.AlignCenter
+                    width: childrenRect.width
+                    height: childrenRect.height
+                    color: Style.colorRed2
+                    visible: Math.abs(parseFloat(API.app.trading_pg.cex_price_diff)) >= 50
+
+                    RowLayout
+                    {
+                        Layout.fillWidth: true
+
+                        Item { width: 3 }
+
+                        DefaultCheckBox
+                        {
+                            id: allow_bad_trade
+                            Layout.alignment: Qt.AlignCenter
+                            textColor: Style.colorWhite0
+                            visible:  Math.abs(parseFloat(API.app.trading_pg.cex_price_diff)) >= 50
+                            spacing: 2
+                            boxWidth: 16
+                            boxHeight: 16
+                            boxRadius: 8
+                            label.wrapMode: Label.NoWrap
+                            text: qsTr("Trade price is more than 50% different to CEX! Confirm?")
+                            font: DexTypo.caption
+                        }
+                    }
+                }
 
                 DefaultText
                 {
@@ -132,6 +176,21 @@ MultipageModal
 
                 ColumnLayout
                 {
+                    id: fees_error
+                    width: parent.width - 20
+                    anchors.centerIn: parent
+                    visible: root.fees.hasOwnProperty('error') // Should be handled before this modal, but leaving here as a fallback
+
+                    DefaultText
+                    {
+                        width: parent.width
+                        text_value: root.fees.hasOwnProperty('error') ? root.fees["error"].split("] ").slice(-1) : ""
+                        Layout.bottomMargin: 8
+                    }
+                }
+
+                ColumnLayout
+                {
                     id: fees_detail
                     width: parent.width - 20
                     anchors.centerIn: parent
@@ -150,7 +209,7 @@ MultipageModal
 
                     Repeater
                     {
-                        model: root.fees.hasOwnProperty('base_transaction_fees_ticker') ? root.fees.total_fees : []
+                        model: root.fees.hasOwnProperty('base_transaction_fees_ticker')  && !API.app.trading_pg.preimage_rpc_busy ? root.fees.total_fees : []
                         delegate: DefaultText
                         {
                             text: General.getFeesDetailText(
@@ -169,7 +228,7 @@ MultipageModal
                         width: parent.width
                         horizontalAlignment: DefaultText.AlignHCenter
                         font: DexTypo.caption
-                        color: Dex.CurrentTheme.noColor
+                        color: Dex.CurrentTheme.warningColor
                         text_value: General.getTradingError(
                                         last_trading_error,
                                         curr_fee_info,
@@ -247,7 +306,7 @@ MultipageModal
                             text_value: "✅ " + (
                                 config_section.is_dpow_configurable
                                 ? '<a href="https://komodoplatform.com/security-delayed-proof-of-work-dpow/">'
-                                + qsTr("dPoW protected") + General.cex_icon +  '</a>'
+                                + qsTr("dPoW protected ") + General.cex_icon +  '</a>'
                                 : qsTr("%1 confirmations for incoming %2 transactions")
                                 .arg(config_section.default_config.required_confirmations || 1).arg(rel_ticker)
                             )
@@ -291,7 +350,7 @@ MultipageModal
                         DefaultSlider
                         {
                             id: required_confirmation_count
-                            height: 30
+                            height: 24
 
                             Layout.alignment: Qt.AlignCenter
 
@@ -310,8 +369,8 @@ MultipageModal
                     FloatingBackground
                     {
                         Layout.alignment: Qt.AlignCenter
-                        width: 360
-                        height: 30
+                        width: dpow_off_warning.implicitWidth + 30
+                        height: dpow_off_warning.implicitHeight + 10
                         color: Style.colorRed2
                         visible: {
                             enable_custom_config.checked && (config_section.is_dpow_configurable && !enable_dpow_confs.checked)
@@ -321,6 +380,7 @@ MultipageModal
                         {
                             id: dpow_off_warning
                             anchors.fill: parent
+                            font: DexTypo.body2
                             color: Style.colorWhite0
                             horizontalAlignment: Qt.AlignHCenter
                             verticalAlignment: Qt.AlignVCenter
@@ -349,14 +409,17 @@ MultipageModal
         [
             Item { Layout.fillWidth: true },
 
-            DefaultButton
+            CancelButton
             {
                 text: qsTr("Cancel")
                 padding: 10
                 leftPadding: 45
                 rightPadding: 45
                 radius: 10
-                onClicked: root.close()
+                onClicked: {
+                    root.close()
+                    API.app.trading_pg.reset_fees()
+                }
             },
 
             Item { Layout.fillWidth: true },
@@ -368,14 +431,15 @@ MultipageModal
                 leftPadding: 45
                 rightPadding: 45
                 radius: 10
-                enabled: !buy_sell_rpc_busy && last_trading_error === TradingError.None
+                enabled: General.is_swap_safe(allow_bad_trade)
                 onClicked:
                 {
                     trade({ enable_custom_config: enable_custom_config.checked,
                             is_dpow_configurable: config_section.is_dpow_configurable,
                             enable_dpow_confs: enable_dpow_confs.checked,
                             required_confirmation_count: required_confirmation_count.value, },
-                          config_section.default_config)
+                            config_section.default_config)
+                    API.app.trading_pg.reset_fees()
                 }
             },
 

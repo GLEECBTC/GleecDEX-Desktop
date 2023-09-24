@@ -10,7 +10,7 @@
 
 namespace
 {
-    constexpr const char*                 g_komodo_prices_endpoint = "https://prices.komodo.live:1313";
+    constexpr const char*                 g_komodo_prices_endpoint = "https://prices.komodo.earth";
     constexpr const char*                 g_komodo_prices_endpoint_fallback = "https://prices.cipig.net:1717";
 
     web::http::client::http_client_config g_komodo_prices_cfg{[]()
@@ -61,10 +61,6 @@ namespace atomic_dex::komodo_prices::api
         {
             x = provider::forex;
         }
-        else if (j == "nomics")
-        {
-            x = provider::nomics;
-        }
         else
         {
             x = provider::unknown;
@@ -79,8 +75,8 @@ namespace atomic_dex::komodo_prices::api
     {
         web::http::http_request req;
         req.set_method(web::http::methods::GET);
-        SPDLOG_INFO("url: {}", TO_STD_STR(g_komodo_prices_client->base_uri().to_string()) + "api/v2/tickers?expire_at=600");
-        req.set_request_uri(FROM_STD_STR("/api/v2/tickers?expire_at=600"));
+        SPDLOG_INFO("url: {}", TO_STD_STR(g_komodo_prices_client->base_uri().to_string()) + "api/v2/tickers?expire_at=21600");
+        req.set_request_uri(FROM_STD_STR("/api/v2/tickers?expire_at=21600"));
         return fallback ? g_komodo_prices_client_fallback->request(req) : g_komodo_prices_client->request(req);
     }
 } // namespace atomic_dex::komodo_prices::api

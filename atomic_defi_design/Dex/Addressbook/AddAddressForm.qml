@@ -21,7 +21,7 @@ Dex.Rectangle
     property string  addressKey
     property string  addressValue
 
-    property var     availableNetworkStandards: ["QRC-20", "ERC-20", "BEP-20", "Smart Chain"]
+    property var     availableNetworkStandards: ["QRC-20", "ERC-20", "BEP-20", "Smart Chain", "SLP"]
 
     // Return the asset type that will be used in the backend to validate the address
     function getTypeForAddressChecker(addressType)
@@ -32,11 +32,11 @@ Dex.Rectangle
             case "BEP-20":      return "BNB"
             case "ERC-20":      return "ETH"
             case "Smart Chain": return "KMD"
-            case "SLP":         return "BCH"
+            case "SLP":         return "USDT-SLP"
         }
 
         let coinInfo = Dex.API.app.portfolio_pg.global_cfg_mdl.get_coin_info(addressType);
-        if (coinInfo.has_parent_fees_ticker)
+        if (coinInfo.has_parent_fees_ticker && coinInfo.type !== "SLP")
             return coinInfo.fees_ticker;
         return addressType
     }
@@ -46,11 +46,11 @@ Dex.Rectangle
     {
         switch (addressType)
         {
-        case "QRC-20":      return true
-        case "BEP-20":      return true
-        case "ERC-20":      return true
-        case "Smart Chain": return true
-        case "SLP":         return true
+            case "QRC-20":      return true
+            case "BEP-20":      return true
+            case "ERC-20":      return true
+            case "Smart Chain": return true
+            case "SLP":         return true
         }
         return false
     }
@@ -118,16 +118,22 @@ Dex.Rectangle
                 showAssetStandards: useStandardsCheckBox.checked
             }
 
-            Dex.DefaultCheckBox
-            {
-                id: useStandardsCheckBox
-                Layout.preferredWidth: 150
-                Layout.fillHeight: true
-                Layout.leftMargin: 4
-                boxWidth: 22
-                boxHeight: 22
-                text: qsTr("Use standard network address")
-                font: Dex.DexTypo.caption
+            RowLayout {
+                id: rowLayout
+                spacing: 4
+                Dex.DefaultCheckBox
+                {
+                    id: useStandardsCheckBox
+                    Layout.preferredWidth: 30
+                    Layout.fillHeight: true
+                    Layout.leftMargin: 4
+                }
+                Dex.DefaultText {
+                    Layout.minimumWidth: 120
+                    Layout.maximumWidth: 120
+                    text: qsTr("Use standard network address")
+                    font: Dex.DexTypo.caption
+                }
             }
         }
 
@@ -156,10 +162,12 @@ Dex.Rectangle
         Dex.Text
         {
             id: invalidAddressValueLabel
-            Layout.fillWidth: true
+            Layout.preferredWidth: 458
+            Layout.preferredHeight: 60
             visible: text !== ""
-            color: Dex.CurrentTheme.noColor
-            wrapMode: Dex.Text.Wrap
+            color: Dex.CurrentTheme.warningColor
+            wrapMode: Dex.Text.WordWrap
+            elide: Dex.Text.ElideRight
             horizontalAlignment: Text.AlignHCenter
         }
 
@@ -168,7 +176,7 @@ Dex.Rectangle
             Layout.topMargin: 10
             Layout.fillWidth: true
 
-            Dex.Button
+            Dex.CancelButton
             {
                 Layout.preferredWidth: 116
                 Layout.preferredHeight: 38
@@ -187,7 +195,7 @@ Dex.Rectangle
                 Layout.preferredWidth: 116
                 Layout.preferredHeight: 38
                 radius: 18
-                text: isConvertMode ? qsTr("Convert") : editionMode ? qsTr("Edit") : qsTr("Add")
+                text: isConvertMode ? qsTr("Convert") : editionMode ? qsTr("Update") : qsTr("Save")
                 onClicked:
                 {
                     let addressType = getTypeForAddressChecker(addressTypeComboBox.currentText)
@@ -293,7 +301,7 @@ Dex.Rectangle
                     },
 
                     // Cancel button
-                    Dex.Button
+                    Dex.CancelButton
                     {
                         Layout.rightMargin: 5
                         text: qsTr("Cancel")

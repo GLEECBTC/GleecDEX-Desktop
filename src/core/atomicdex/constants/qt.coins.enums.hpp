@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2013-2021 The Komodo Platform Developers.                      *
+ * Copyright © 2013-2022 The Komodo Platform Developers.                      *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -51,9 +51,14 @@ namespace atomic_dex
             SmartBCH        = 17,
             EthereumClassic = 18,
             RSK             = 19,
-            Disabled        = 20,
-            All             = 21,
-            Size            = 22
+            ZHTLC           = 20,
+            TENDERMINT      = 21,
+            TENDERMINTTOKEN = 22,
+            EWT             = 23,
+            Disabled        = 24,
+            Invalid         = 25,
+            All             = 26,
+            Size            = 27
         };
 
         Q_ENUM(CoinTypeEnum)

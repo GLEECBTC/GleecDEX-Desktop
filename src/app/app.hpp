@@ -49,6 +49,8 @@
 #include "atomicdex/services/mm2/mm2.service.hpp"
 #include "atomicdex/services/price/global.provider.hpp"
 #include "atomicdex/services/update/update.checker.service.hpp"
+#include "atomicdex/services/update/zcash.params.service.hpp"
+#include "atomicdex/utilities/qt.utilities.hpp"
 
 namespace ag = antara::gaming;
 
@@ -74,6 +76,7 @@ namespace atomic_dex
         Q_PROPERTY(settings_page* settings_pg READ get_settings_page NOTIFY settingsPageChanged)
         Q_PROPERTY(qt_wallet_manager* wallet_mgr READ get_wallet_mgr NOTIFY walletMgrChanged)
         Q_PROPERTY(update_checker_service* updateCheckerService READ get_update_checker_service NOTIFY updateCheckerServiceChanged)
+        Q_PROPERTY(zcash_params_service* zcash_params READ get_zcash_params_service NOTIFY zcashParamsServiceChanged)
 
         //! Private function
         void connect_signals();
@@ -118,23 +121,24 @@ namespace atomic_dex
         void on_mm2_initialized_event(const mm2_initialized&);
         void on_process_orders_and_swaps_finished_event(const process_swaps_and_orders_finished&);
 
-        mm2_service&                     get_mm2();
-        [[nodiscard]] const mm2_service& get_mm2() const;
-        entt::dispatcher&                get_dispatcher();
-        const entt::registry&            get_registry() const;
-        entt::registry&                  get_registry();
-        [[nodiscard]] addressbook_page*  get_addressbook_page() const;
-        [[nodiscard]] portfolio_page*    get_portfolio_page() const;
-        [[nodiscard]] wallet_page*       get_wallet_page() const;
-        orders_model*                    get_orders() const;
-        notification_manager*            get_notification_manager() const;
-        trading_page*                    get_trading_page() const;
-        settings_page*                   get_settings_page() const;
-        qt_wallet_manager*               get_wallet_mgr() const;
-        internet_service_checker*        get_internet_checker() const;
-        ip_service_checker*              get_ip_checker() const;
-        update_checker_service*          get_update_checker_service() const;
-        exporter_service*                get_exporter_service() const;
+        mm2_service&                             get_mm2();
+        [[nodiscard]] const mm2_service&         get_mm2() const;
+        entt::dispatcher&                        get_dispatcher();
+        const entt::registry&                    get_registry() const;
+        entt::registry&                          get_registry();
+        [[nodiscard]] addressbook_page*          get_addressbook_page() const;
+        [[nodiscard]] portfolio_page*            get_portfolio_page() const;
+        [[nodiscard]] wallet_page*               get_wallet_page() const;
+        orders_model*                            get_orders() const;
+        notification_manager*                    get_notification_manager() const;
+        trading_page*                            get_trading_page() const;
+        settings_page*                           get_settings_page() const;
+        qt_wallet_manager*                       get_wallet_mgr() const;
+        internet_service_checker*                get_internet_checker() const;
+        ip_service_checker*                      get_ip_checker() const;
+        update_checker_service*                  get_update_checker_service() const;
+        [[nodiscard]] zcash_params_service*      get_zcash_params_service() const;
+        exporter_service*                        get_exporter_service() const;
 
         void set_qt_app(std::shared_ptr<QApplication> app, QQmlApplicationEngine* qml_engine);
 
@@ -151,6 +155,7 @@ namespace atomic_dex
         //! Portfolio QML API Bindings
         Q_INVOKABLE QString recover_fund(const QString& uuid);
 
+        Q_INVOKABLE void               reset_coin_cfg();
         Q_INVOKABLE void               refresh_orders_and_swaps();
         Q_INVOKABLE static QString     get_mnemonic();
         Q_INVOKABLE static bool        first_run();
@@ -158,6 +163,7 @@ namespace atomic_dex
         Q_INVOKABLE bool               enable_coins(const QStringList& coins);
         Q_INVOKABLE bool               enable_coin(const QString& coin);
         Q_INVOKABLE QString            get_balance(const QString& coin);
+        Q_INVOKABLE QJsonObject        get_zhtlc_status(const QString& coin);
         Q_INVOKABLE [[nodiscard]] bool do_i_have_enough_funds(const QString& ticker, const QString& amount) const;
         Q_INVOKABLE bool               disable_coins(const QStringList& coins);
         Q_INVOKABLE bool               disable_no_balance_coins();
@@ -174,6 +180,7 @@ namespace atomic_dex
         void walletPageChanged();
         void ordersChanged();
         void updateCheckerServiceChanged();
+        void zcashParamsServiceChanged();
         void tradingPageChanged();
         void settingsPageChanged();
         void internetCheckerChanged();
