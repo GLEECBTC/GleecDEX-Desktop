@@ -1,4 +1,4 @@
-name: AtomicDex-Desktop VirustTotal Release
+name: komodo-wallet-desktop VirustTotal Release
 
 on:
   release:
@@ -10,7 +10,7 @@ jobs:
     steps:
       -
         name: VirusTotal Scan
-        uses: crazy-max/ghaction-virustotal@v2.2.1
+        uses: crazy-max/ghaction-virustotal@v3.1.0
         with:
           vt_api_key: ${{ secrets.VT_API_KEY }}
           github_token: ${{ github.token }}

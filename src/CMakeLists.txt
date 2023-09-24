@@ -1,4 +1,5 @@
 include(DEX_NEW_LIB)
+include(dex_generate_qrc)
 
 # Core target
 DEX_NEW_LIB(core INTERFACE
@@ -10,17 +11,19 @@ DEX_NEW_LIB(core INTERFACE
         INTERFACE_DEFS
             $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG> $<$<PLATFORM_ID:Windows>:HAS_REMOTE_API>
             $<$<PLATFORM_ID:Windows>:AUTO_DOWNLOAD>
+            $<$<PLATFORM_ID:Windows>:NOMINMAX>
             $<$<PLATFORM_ID:Windows>:SPDLOG_WCHAR_TO_UTF8_SUPPORT>
             _TURN_OFF_PLATFORM_STRING
-            DEX_NAME="${DEX_DISPLAY_NAME}" DEX_WEBSITE_URL="${DEX_WEBSITE}"
+            DEX_API="${DEX_API}" DEX_RPC="${DEX_RPC}" DEX_RPCPORT="${DEX_RPCPORT}" DEX_NAME="${DEX_DISPLAY_NAME}" DEX_WEBSITE_URL="${DEX_WEBSITE}"
             DEX_SUPPORT_URL="${DEX_SUPPORT_PAGE}" DEX_DISCORD_URL="${DEX_DISCORD}" DEX_TWITTER_URL="${DEX_TWITTER}"
             DEX_PRIMARY_COIN="${DEX_PRIMARY_COIN}" DEX_SECOND_PRIMARY_COIN="${DEX_SECOND_PRIMARY_COIN}" #DEX_COMMON_DATA_FOLDER="${DEX_COMMON_DATA_FOLDER}"
-            DEX_PROJECT_NAME="${DEX_PROJECT_NAME}" DEX_COMPANY_NAME="${DEX_COMPANY_NAME}"
+            DEX_PROJECT_NAME="${DEX_PROJECT_NAME}" DEX_COMPANY_NAME="${DEX_COMPANY_NAME}" DEX_VERSION="${DEX_VERSION}"
             DEX_REPOSITORY_OWNER="${DEX_REPOSITORY_OWNER}" DEX_REPOSITORY_NAME="${DEX_REPOSITORY_NAME}"
             DEX_CHECKSUM_API_URL="${DEX_CHECKSUM_API_URL}" DEX_APPDATA_FOLDER="${DEX_APPDATA_FOLDER}"
         INTERFACE_DEFS
             ENTT_API_EXPORT)
 target_precompile_headers(${PROJECT_NAME}_core INTERFACE core/atomicdex/pch.hpp)
+
 if (APPLE)
     set_source_files_properties(core/atomicdex/platform/osx/manager.mm PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
     macro(adex_add_framework fwname appname)
@@ -50,16 +53,29 @@ set_directory_properties(PROPERTIES CLEAN_NO_CUSTOM TRUE)
 set(TS_FILES
         ${CMAKE_SOURCE_DIR}/atomic_defi_design/assets/languages/atomic_defi_en.ts
         ${CMAKE_SOURCE_DIR}/atomic_defi_design/assets/languages/atomic_defi_fr.ts
+        ${CMAKE_SOURCE_DIR}/atomic_defi_design/assets/languages/atomic_defi_de.ts
+        ${CMAKE_SOURCE_DIR}/atomic_defi_design/assets/languages/atomic_defi_es.ts
         ${CMAKE_SOURCE_DIR}/atomic_defi_design/assets/languages/atomic_defi_tr.ts
         ${CMAKE_SOURCE_DIR}/atomic_defi_design/assets/languages/atomic_defi_ru.ts)
 set_source_files_properties(${TS_FILES} PROPERTIES OUTPUT_LOCATION ${CMAKE_SOURCE_DIR}/atomic_defi_design/assets/languages)
 qt5_create_translation(QM_FILES
-        ${PROJECT_SOURCE_DIR}/atomic_defi_design/qml
+        ${PROJECT_SOURCE_DIR}/atomic_defi_design/Dex
         ${PROJECT_SOURCE_DIR}/src
         ${TS_FILES}
         OPTIONS -source-language en_US -no-obsolete)
 message(STATUS "QM FILES -> ${QM_FILES}")
 message(STATUS "TS FILES -> ${TS_FILES}")
+
+set(qml_qrc)
+set(assets_qrc)
+set(imports_qrc ${CMAKE_SOURCE_DIR}/atomic_defi_design/imports/qml.qrc)
+dex_generate_qrc(${CMAKE_SOURCE_DIR}/atomic_defi_design/Dex qml_qrc 
+    PATH_PREFIX "Dex"
+    FILES_TO_EXCLUDE ".gitignore;.DS_Store;.qrc")
+dex_generate_qrc(${CMAKE_SOURCE_DIR}/atomic_defi_design/assets assets_qrc 
+    PATH_PREFIX "assets"
+    FILES_TO_EXCLUDE ".gitignore;.DS_Store;CONTRIBUTING.txt;FONTLOG.txt;LICENCE-FAQ.txt;LICENCE.txt;README.txt;TRADEMARKS.txt;.ts;.qm;.qrc"
+    FILES "languages/atomic_defi_en.qm;languages/atomic_defi_es.qm;languages/atomic_defi_de.qm;languages/atomic_defi_fr.qm;languages/atomic_defi_ru.qm;languages/atomic_defi_tr.qm")
 
 # Main executable
 add_executable(${PROJECT_NAME}
@@ -72,7 +88,9 @@ add_executable(${PROJECT_NAME}
         ${CMAKE_SOURCE_DIR}/cmake/install/windows/dex.rc
 
         ##! QRC
-        ${CMAKE_SOURCE_DIR}/qml.qrc
+        ${qml_qrc}
+        ${assets_qrc}
+        ${imports_qrc}
 
         ##! Linguistic
         ${QM_FILES}
@@ -83,25 +101,37 @@ set_target_properties(${PROJECT_NAME}
         PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/")
 
-set_target_properties(${PROJECT_NAME} PROPERTIES UNITY_BUILD ON)
+#set_target_properties(${PROJECT_NAME} PROPERTIES UNITY_BUILD ON)
 if (APPLE)
     set_property(SOURCE core/atomicdex/platform/osx/manager.mm PROPERTY SKIP_UNITY_BUILD_INCLUSION ON)
 endif ()
 
 # Testing executable
 add_executable(${PROJECT_NAME}_tests MACOSX_BUNDLE ${ICON}
+        tests/atomic.dex.qt.utilities.tests.cpp
+        tests/atomic.dex.provider.cex.prices.api.tests.cpp
+        tests/atomic.dex.provider.cex.prices.tests.cpp
         tests/atomic.dex.tests.cpp
         tests/atomic.dex.wallet.config.tests.cpp
-        tests/atomic.dex.provider.cex.prices.tests.cpp
-        tests/atomic.dex.qt.utilities.tests.cpp
 
-        tests/config/coins.cfg.tests.cpp
         ##! API
         tests/api/coingecko/coingecko.tests.cpp
+        tests/api/komodo_prices/komodo.prices.tests.cpp
+        tests/api/mm2/mm2.api.format.address.tests.cpp
+        tests/api/mm2/mm2.api.utxo.merge.params.tests.cpp
+        tests/api/mm2/mm2.api.balance.infos.tests.cpp
+        tests/api/mm2/mm2.fraction.tests.cpp
+        tests/api/mm2/mm2.rpc.trade.preimage.tests.cpp
+
+        ##! CFG
+        tests/config/coins.cfg.tests.cpp
+        
+        ##! API
+        tests/api/coingecko/coingecko.tests.cpp
+        tests/api/komodo_prices/komodo.prices.tests.cpp
         tests/api/mm2/mm2.rpc.trade.preimage.tests.cpp
         tests/api/mm2/mm2.fraction.tests.cpp
-        #tests/api/github/github.api.tests.cpp
-        #tests/api/checksum/checksum.api.tests.cpp
+        tests/api/mm2/enable_bch_with_tokens_rpc_tests.cpp
 
         ##! Utilities
         tests/utilities/qt.utilities.tests.cpp
@@ -113,7 +143,10 @@ add_executable(${PROJECT_NAME}_tests MACOSX_BUNDLE ${ICON}
         ##! Models
         tests/models/qt.addressbook.contact.model.tests.cpp
 
-        tests/atomic.dex.provider.cex.prices.api.tests.cpp)
+        ##! Utilities
+        tests/utilities/qt.utilities.tests.cpp
+        tests/utilities/global.utilities.tests.cpp)
+
 target_link_libraries(${PROJECT_NAME}_tests
         PUBLIC
         ${PROJECT_NAME}::core
@@ -181,10 +214,10 @@ if (WIN32)
     add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_SOURCE_DIR}/ci_tools_atomic_dex/windows_misc $<TARGET_FILE_DIR:${PROJECT_NAME}>)
-    message(STATUS "${WINDEPLOYQT_PATH} ${CMAKE_BINARY_DIR}/bin/${PROJECT_NAME}.exe --qmldir ${CMAKE_SOURCE_DIR}/atomic_defi_design/qml")
+    message(STATUS "${WINDEPLOYQT_PATH} ${CMAKE_BINARY_DIR}/bin/${PROJECT_NAME}.exe --qmldir ${CMAKE_SOURCE_DIR}/atomic_defi_design/Dex")
     add_custom_command(TARGET ${PROJECT_NAME}
             POST_BUILD
-            COMMAND ${WINDEPLOYQT_PATH} ${CMAKE_BINARY_DIR}/bin/${PROJECT_NAME}.exe --qmldir ${CMAKE_SOURCE_DIR}/atomic_defi_design/qml
+            COMMAND ${WINDEPLOYQT_PATH} ${CMAKE_BINARY_DIR}/bin/${PROJECT_NAME}.exe --qmldir ${CMAKE_SOURCE_DIR}/atomic_defi_design/Dex
             )
     include(${CMAKE_SOURCE_DIR}/cmake/install/windows/dex_install.cmake)
 

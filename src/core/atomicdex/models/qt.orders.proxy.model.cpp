@@ -63,6 +63,8 @@ namespace atomic_dex
             break;
         case orders_model::UnixTimestampRole:
             return left_data.toULongLong() < right_data.toULongLong();
+        case orders_model::PaymentLockRole:
+            break;
         case orders_model::OrderIdRole:
             break;
         case orders_model::OrderStatusRole:
@@ -276,11 +278,11 @@ namespace atomic_dex
     void
     orders_proxy_model::export_csv_visible_history(const QString& path)
     {
-        const fs::path csv_path = path.toStdString();
+        const std::filesystem::path csv_path = path.toStdString();
         SPDLOG_INFO("exporting csv with path: {}", csv_path.string());
         std::ofstream ofs(csv_path.string(), std::ios::out | std::ios::trunc);
         int           nb_items = this->rowCount();
-        ofs << "Date, BaseCoin, BaseAmount, Status, RelCoin, RelAmount, UUID, ErrorState" << std::endl;
+        ofs << "Date,BaseCoin,BaseAmount,Status,RelCoin,RelAmount,UUID,ErrorState" << std::endl;
         for (int cur_idx = 0; cur_idx < nb_items; ++cur_idx)
         {
             QModelIndex idx = this->index(cur_idx, 0);

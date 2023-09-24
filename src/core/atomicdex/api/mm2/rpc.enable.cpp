@@ -21,33 +21,50 @@
 #include "atomicdex/api/mm2/rpc.enable.hpp"
 
 //! Implementation RPC [enable]
-namespace mm2::api
+namespace atomic_dex::mm2
 {
     //! Serialization
     void
     to_json(nlohmann::json& j, const enable_request& cfg)
     {
         j["coin"] = cfg.coin_name;
-
         switch (cfg.coin_type)
         {
         case CoinType::ERC20:
         {
-            j["gas_station_url"]        = cfg.gas_station_url;
-            j["urls"]                   = cfg.urls;
-            j["swap_contract_address"]  = cfg.is_testnet ? cfg.erc_testnet_swap_contract_address : cfg.erc_swap_contract_address;
-            j["fallback_swap_contract"] = cfg.is_testnet ? cfg.erc_testnet_fallback_swap_contract_address : cfg.erc_fallback_swap_contract_address;
-            break;
+            if (cfg.gas_station_url.has_value())
+            {
+                j["gas_station_url"]        = cfg.gas_station_url.value();
+            }
         }
-        break;
-        case CoinType::BEP20:
+        case CoinType::Matic:
         {
-            j["swap_contract_address"]  = cfg.is_testnet ? cfg.bnb_testnet_swap_contract_address : cfg.bnb_swap_contract_address;
-            j["fallback_swap_contract"] = cfg.is_testnet ? cfg.bnb_testnet_fallback_swap_contract_address : cfg.bnb_fallback_swap_contract_address;
-            j["urls"]                   = cfg.urls;
-            break;
+            if (cfg.is_testnet)
+            {
+                if (cfg.testnet_matic_gas_station_url.has_value())
+                {
+                    j["gas_station_url"]    = cfg.testnet_matic_gas_station_url.value();
+                }
+            }
+            else
+            {
+                if (cfg.matic_gas_station_url.has_value())
+                {
+                    j["gas_station_url"]        = cfg.matic_gas_station_url.value();
+                }
+            }
+            if (cfg.matic_gas_station_decimals.has_value())
+            {
+                j["gas_station_decimals"]   = cfg.matic_gas_station_decimals.value();
+            }
         }
         default:
+            j["urls"]                   = cfg.urls;
+            j["swap_contract_address"]  = cfg.swap_contract_address;
+            if (cfg.fallback_swap_contract_address.has_value())
+            {
+                j["fallback_swap_contract"] = cfg.fallback_swap_contract_address.value();
+            }
             break;
         }
 
@@ -63,4 +80,4 @@ namespace mm2::api
         j.at("result").get_to(cfg.result);
         // SPDLOG_INFO("balance for {} is {}", cfg.address, cfg.balance);
     }
-} // namespace mm2::api
+} // namespace atomic_dex::mm2

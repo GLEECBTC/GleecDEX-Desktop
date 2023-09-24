@@ -10,7 +10,6 @@
 
 //! Project
 #include "atomicdex/api/mm2/mm2.constants.hpp"
-#include "atomicdex/utilities/fs.prerequisites.hpp"
 #include "atomicdex/utilities/global.utilities.hpp"
 #include "atomicdex/utilities/qt.utilities.hpp"
 
@@ -79,8 +78,8 @@ namespace atomic_dex
 
     struct address_format
     {
-        std::string format;
-        std::string network;
+        std::string                format;
+        std::optional<std::string> network{std::nullopt};
     };
 
     struct coin_element
@@ -89,6 +88,7 @@ namespace atomic_dex
         std::optional<std::string>    name{std::nullopt};
         std::optional<std::string>    fname{std::nullopt};
         std::optional<std::string>    etomic{std::nullopt};
+        std::optional<int64_t>        chain_id{std::nullopt};
         std::optional<int64_t>        rpcport{std::nullopt};
         std::optional<int64_t>        pubtype{std::nullopt};
         std::optional<int64_t>        p2_shtype{std::nullopt};
@@ -139,15 +139,18 @@ namespace atomic_dex
     from_json(const json& j, atomic_dex::address_format& x)
     {
         x.format  = j.at("format").get<std::string>();
-        x.network = j.at("network").get<std::string>();
+        x.network = atomic_dex::get_optional<std::string>(j, "network");
     }
 
     inline void
     to_json(json& j, const atomic_dex::address_format& x)
     {
-        j            = json::object();
-        j["format"]  = x.format;
-        j["network"] = x.network;
+        j           = json::object();
+        j["format"] = x.format;
+        if (x.network.has_value())
+        {
+            j["network"] = x.network.value();
+        }
     }
 
     inline void
@@ -157,6 +160,7 @@ namespace atomic_dex
         x.name                   = atomic_dex::get_optional<std::string>(j, "name");
         x.fname                  = atomic_dex::get_optional<std::string>(j, "fname");
         x.etomic                 = atomic_dex::get_optional<std::string>(j, "etomic");
+        x.chain_id               = atomic_dex::get_optional<int64_t>(j, "chain_id");
         x.rpcport                = atomic_dex::get_optional<int64_t>(j, "rpcport"); // j.at("rpcport").get<int64_t>();
         x.pubtype                = atomic_dex::get_optional<int64_t>(j, "pubtype");
         x.p2_shtype              = atomic_dex::get_optional<int64_t>(j, "p2shtype");
@@ -190,7 +194,8 @@ namespace atomic_dex
     to_json(json& j, const atomic_dex::coin_element& x)
     {
         j                    = json::object();
-        auto to_json_functor = [&j](const std::string field_name, const auto& field) {
+        auto to_json_functor = [&j](const std::string field_name, const auto& field)
+        {
             if (field.has_value())
             {
                 j[field_name] = field.value();
@@ -201,6 +206,7 @@ namespace atomic_dex
         to_json_functor("name", x.name);
         to_json_functor("fname", x.fname);
         to_json_functor("etomic", x.etomic);
+        to_json_functor("chain_id", x.chain_id);
         to_json_functor("rpcport", x.rpcport);
         to_json_functor("pubtype", x.pubtype);
         to_json_functor("p2shtype", x.p2_shtype);
@@ -236,14 +242,14 @@ namespace atomic_dex
     {
         SPDLOG_INFO("parse_raw_mm2_coins_file");
         t_mm2_raw_coins_registry out;
-        fs::path                 file_path{atomic_dex::utils::get_current_configs_path() / "coins.json"};
-        if (not fs::exists(file_path))
+        std::filesystem::path                 file_path{atomic_dex::utils::get_current_configs_path() / "coins.json"};
+        if (not std::filesystem::exists(file_path))
         {
-            fs::path original_mm2_coins_path{ag::core::assets_real_path() / "tools" / "mm2" / "coins"};
+            std::filesystem::path original_mm2_coins_path{ag::core::assets_real_path() / "tools" / "mm2" / "coins"};
             //! Copy our json to current version
             LOG_PATH_CMP("Copying mm2 coins cfg: {} to {}", original_mm2_coins_path, file_path);
 
-            fs::copy_file(original_mm2_coins_path, file_path, get_override_options());
+            std::filesystem::copy_file(original_mm2_coins_path, file_path, std::filesystem::copy_options::overwrite_existing);
         }
 
         QFile file;
@@ -255,7 +261,7 @@ namespace atomic_dex
         try
         {
             nlohmann::json j = nlohmann::json::parse(val.toStdString());
-            //ifs >> j;
+            // ifs >> j;
             t_mm2_raw_coins coins = j;
             out.reserve(coins.size());
             for (auto&& coin: coins) { out[coin.coin] = coin; }
@@ -264,6 +270,7 @@ namespace atomic_dex
         }
         catch (const std::exception& error)
         {
+            SPDLOG_ERROR("parse error: {}", error.what());
             LOG_PATH("cannot parse mm2 raw cfg file: {}", file_path);
         }
         return out;

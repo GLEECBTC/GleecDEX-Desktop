@@ -1,9 +1,13 @@
 #!/bin/bash
 
 brew update
+
+brew unlink libtool
+wget https://raw.githubusercontent.com/Homebrew/homebrew-core/0fbd6e24c4122e18ade1ec6c5916cb21de14f352/Formula/libtool.rb
+brew install libtool.rb
+
 brew install autoconf \
             automake \
-            libtool \
             pkgconfig \
             wget \
             nim \
@@ -16,7 +20,7 @@ brew install autoconf \
 pip3 install yq
 export CC=clang
 export CXX=clang++
-export MACOSX_DEPLOYMENT_TARGET=10.14
+export MACOSX_DEPLOYMENT_TARGET=10.15
 
 # get curl
 #git clone https://github.com/KomodoPlatform/curl.git
@@ -27,7 +31,7 @@ export MACOSX_DEPLOYMENT_TARGET=10.14
 #make -j3 install
 #cd ../
 
-git clone https://github.com/KomodoPlatform/libwally-core.git
+git clone https://github.com/KomodoPlatform/libwally-core.git --recurse-submodules
 cd libwally-core
 ./tools/autogen.sh
 ./configure --disable-shared

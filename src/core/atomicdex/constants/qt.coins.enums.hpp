@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright © 2013-2021 The Komodo Platform Developers.                      *
+ * Copyright © 2013-2022 The Komodo Platform Developers.                      *
  *                                                                            *
  * See the AUTHORS, DEVELOPER-AGREEMENT and LICENSE files at                  *
  * the top-level directory of this distribution for the individual copyright  *
@@ -31,15 +31,34 @@ namespace atomic_dex
       public:
         enum CoinTypeEnum
         {
-            QRC20      = 0,
-            ERC20      = 1,
-            BEP20      = 2,
-            UTXO       = 3,
-            SmartChain = 4,
-            SLP        = 5,
-            Disabled   = 6,
-            All        = 7,
-            Size       = 8
+            QRC20           = 0,
+            ERC20           = 1,
+            BEP20           = 2,
+            UTXO            = 3,
+            SmartChain      = 4,
+            SLP             = 5,
+            Matic           = 6,
+            Optimism        = 7,
+            Arbitrum        = 8,
+            AVX20           = 9,
+            FTM20           = 10,
+            HRC20           = 11,
+            Ubiq            = 12,
+            KRC20           = 13,
+            Moonriver       = 14,
+            Moonbeam        = 15,
+            HecoChain       = 16,
+            SmartBCH        = 17,
+            EthereumClassic = 18,
+            RSK             = 19,
+            ZHTLC           = 20,
+            TENDERMINT      = 21,
+            TENDERMINTTOKEN = 22,
+            EWT             = 23,
+            Disabled        = 24,
+            Invalid         = 25,
+            All             = 26,
+            Size            = 27
         };
 
         Q_ENUM(CoinTypeEnum)

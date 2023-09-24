@@ -50,13 +50,13 @@ namespace atomic_dex
 
     QString
     retrieve_change_24h(
-        const atomic_dex::coingecko_provider& coingecko, const atomic_dex::coin_config& coin, const atomic_dex::cfg& config,
+        const atomic_dex::komodo_prices_provider& provider, const atomic_dex::coin_config& coin, const atomic_dex::cfg& config,
         [[maybe_unused]] const ag::ecs::system_manager& system_manager)
     {
         QString change_24h = "0";
         if (is_this_currency_a_fiat(config, config.current_currency))
         {
-            change_24h = QString::fromStdString(coingecko.get_change_24h(coin.ticker));
+            change_24h = QString::fromStdString(provider.get_change_24h(utils::retrieve_main_ticker(coin.ticker)));
         }
         return change_24h;
     }
@@ -81,7 +81,7 @@ namespace atomic_dex
     }
 
     QString
-    std_path_to_qstring(const fs::path& path)
+    std_path_to_qstring(const std::filesystem::path& path)
     {
         QString out;
 #if defined(_WIN32) || defined(WIN32)
@@ -112,8 +112,13 @@ namespace atomic_dex
     qt_utilities::get_themes_list() const 
     {
         QStringList    out;
-        const fs::path theme_path = atomic_dex::utils::get_themes_path();
-        for (auto&& cur: fs::directory_iterator(theme_path)) { out << std_path_to_qstring(cur.path().filename()); }
+        const std::filesystem::path theme_path = atomic_dex::utils::get_themes_path();
+        for (auto&& cur: std::filesystem::directory_iterator(theme_path)) 
+        {
+            if (!std::filesystem::exists(cur.path() / "colors.json")) continue;
+
+            out << std_path_to_qstring(cur.path().filename()); 
+        }
         return out;
     }
 
@@ -121,8 +126,8 @@ namespace atomic_dex
     qt_utilities::save_theme(const QString& filename, const QVariantMap& theme_object, bool overwrite)
     {
         bool     result    = true;
-        fs::path file_path = atomic_dex::utils::get_themes_path() / filename.toStdString();
-        if (!overwrite && fs::exists(file_path))
+        std::filesystem::path file_path = atomic_dex::utils::get_themes_path() / filename.toStdString() / "colors.json";
+        if (!overwrite && std::filesystem::exists(file_path))
         {
             result = false;
         }
@@ -143,8 +148,10 @@ namespace atomic_dex
     {
         QVariantMap out;
         using namespace std::string_literals;
-        fs::path file_path = atomic_dex::utils::get_themes_path() / (theme_name.toStdString() + ".json"s);
-        if (fs::exists(file_path))
+        
+        // Loads color scheme.
+        std::filesystem::path file_path = atomic_dex::utils::get_themes_path() / theme_name.toStdString() / "colors.json";
+        if (std::filesystem::exists(file_path))
         {
             LOG_PATH("load theme: {}", file_path);
             QFile file;
@@ -152,7 +159,7 @@ namespace atomic_dex
             file.open(QIODevice::ReadOnly | QIODevice::Text);
             QString val = file.readAll();
             file.close();
-            return QJsonDocument::fromJson(val.toUtf8()).object().toVariantMap();
+            out = QJsonDocument::fromJson(val.toUtf8()).object().toVariantMap();
         }
         return out;
     }

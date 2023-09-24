@@ -57,8 +57,17 @@ namespace atomic_dex
         //! eg: Real fiat values eg: 9400$
         QString main_fiat_price_for_one_unit;
 
-        //! Paprika data rates
+        //! eg: Komodo data rates
         QJsonArray trend_7d;
+
+        //! eg: Komodo data rates
+        QJsonObject activation_status;
+
+        //! Price provider
+        QString price_provider;
+
+        //! Last price timestamp;
+        int price_last_timestamp;
 
         bool is_excluded{false};
 

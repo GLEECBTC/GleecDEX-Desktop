@@ -1,16 +1,12 @@
 Set-ExecutionPolicy RemoteSigned -scope CurrentUser
 
-$DWFILE = ($PWD | select -exp Path) + '\nim-1.2.6.zip'
-(New-Object System.Net.WebClient).DownloadFile('https://github.com/KomodoPlatform/nim_kmd_package_list/raw/master/nim-1.2.6_x64.zip', $DWFILE)
-$DWFOLDER = ($PWD | select -exp Path)
-Expand-Archive -LiteralPath $DWFILE -DestinationPath $DWFOLDER
-$ENV:PATH=$ENV:PATH+';'+($PWD | select -exp Path)+'\nim-1.2.6\bin;'+$ENV:UserProfile+'.nimble\bin'
-& $DWFOLDER\nim-1.2.6\finish.exe -y
+iwr -useb 'https://raw.githubusercontent.com/scoopinstaller/install/master/install.ps1' -outfile 'install.ps1'
+.\install.ps1 -RunAsAdmin
 
-Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')
+#Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh') -RunAsAdmin
 scoop install llvm --global
 scoop install ninja --global
-scoop install cmake@3.20.5 --global
+scoop install cmake@3.26.3 --global
 scoop install git --global
 scoop install 7zip  --global
 scoop cache rm 7zip
@@ -18,14 +14,16 @@ scoop cache rm git
 scoop cache rm cmake
 scoop cache rm ninja
 scoop cache rm llvm
-scoop cache rm nim
+
 $Env:QT_INSTALL_CMAKE_PATH = "C:\Qt\$Env:QT_VERSION\msvc2019_64"
 $Env:QT_ROOT = "C:\Qt"
-cd ci_tools_atomic_dex
-#$file = 'src\generate.nim'
-#$regex = '(?<=g_vcpkg_cmake_script_path & ")[^"]*'
-#(Get-Content $file) -replace $regex, ' -DVCPKG_TARGET_TRIPLET=x64-windows ' | Set-Content $file
-nimble build -y
-#cmd /c '.\ci_tools_atomic_dex.exe build release 2>&1'
-cmd /c '.\ci_tools_atomic_dex.exe bundle release 2>&1'
-#ls bundle-Release/bundle.zip
+
+git clone https://github.com/KomodoPlatform/coins/ -b master
+mkdir -p atomic_defi_design\assets\images\coins
+Get-Item -Path "coins\icons\*.png" | Move-Item -Destination "atomic_defi_design\assets\images\coins"
+
+mkdir b
+cd b
+
+Invoke-Expression "cmake -DCMAKE_BUILD_TYPE=$Env:CMAKE_BUILD_TYPE -GNinja ../"
+ninja install
