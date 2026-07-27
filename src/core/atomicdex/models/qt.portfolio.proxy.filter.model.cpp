@@ -56,6 +56,7 @@ namespace atomic_dex
             return safe_float(left_data.toString().toStdString()) < safe_float(right_data.toString().toStdString());
         case portfolio_model::MainFiatPriceForOneUnit:
         case portfolio_model::Trend7D:
+        case portfolio_model::ActivationStatus:
         case portfolio_model::Excluded:
         case portfolio_model::Display:
         case portfolio_model::NameAndTicker:
@@ -69,6 +70,8 @@ namespace atomic_dex
         case portfolio_model::Address:
         case portfolio_model::PrivKey:
         case portfolio_model::PercentMainCurrency:
+        case portfolio_model::PriceProvider:
+        case portfolio_model::LastPriceTimestamp:
             return false;
         }
     }
@@ -76,10 +79,10 @@ namespace atomic_dex
     bool
     portfolio_proxy_model::filterAcceptsRow(int source_row, const QModelIndex& source_parent) const
     {
-        QModelIndex idx = this->sourceModel()->index(source_row, 0, source_parent);
+        QModelIndex idx       = this->sourceModel()->index(source_row, 0, source_parent);
         assert(this->sourceModel()->hasIndex(idx.row(), 0));
-        QString ticker = this->sourceModel()->data(idx, atomic_dex::portfolio_model::TickerRole).toString();
-        QString type   = this->sourceModel()->data(idx, atomic_dex::portfolio_model::CoinType).toString();
+        QString     ticker    = this->sourceModel()->data(idx, atomic_dex::portfolio_model::TickerRole).toString();
+        QString     type      = this->sourceModel()->data(idx, atomic_dex::portfolio_model::CoinType).toString();
 
         if (this->filterRole() == atomic_dex::portfolio_model::MultiTickerCurrentlyEnabled)
         {
@@ -199,7 +202,11 @@ namespace atomic_dex
     void
     portfolio_proxy_model::set_with_fiat_balance(bool value)
     {
-        m_with_fiat_balance = value;
+        if (value != m_with_fiat_balance)
+        {
+            m_with_fiat_balance = value;
+            this->invalidateFilter();
+        }
     }
 
     void

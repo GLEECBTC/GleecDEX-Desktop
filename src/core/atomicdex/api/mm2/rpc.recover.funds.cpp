@@ -8,7 +8,7 @@
 //! Project Headers
 #include "atomicdex/api/mm2/rpc.recover.funds.hpp"
 
-namespace mm2::api
+namespace atomic_dex::mm2
 {
     void
     to_json(nlohmann::json& j, const recover_funds_of_swap_request& cfg)
@@ -29,7 +29,7 @@ namespace mm2::api
     void
     from_json(const nlohmann::json& j, recover_funds_of_swap_answer& answer)
     {
-        if (j.count("error") == 1)
+        if (j.contains("error"))
         {
             answer.error = j.at("error").get<std::string>();
         }
